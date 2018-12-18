@@ -1,6 +1,5 @@
 import typing
 import attr
-from . import types
 
 
 # GENERAL
@@ -24,6 +23,35 @@ class Operator(Node):
     name: str
     precedence: int
     associativity: str  # "left" or "right"
+
+
+# TYPES
+
+
+@attr.s(frozen=True, auto_attribs=True, kw_only=True)
+class Type(Node):
+    pass
+
+
+@attr.s(frozen=True, auto_attribs=True, kw_only=True)
+class Int(Type):
+    pass
+
+
+@attr.s(frozen=True, auto_attribs=True, kw_only=True)
+class Bool(Type):
+    pass
+
+
+@attr.s(frozen=True, auto_attribs=True, kw_only=True)
+class String(Type):
+    pass
+
+
+@attr.s(frozen=True, auto_attribs=True, kw_only=True)
+class Function(Type):
+    params: typing.List[Type]
+    ret: Type
 
 
 # EXPRESSIONS
@@ -56,8 +84,8 @@ class SConstant(Expression):
 
 @attr.s(frozen=True, auto_attribs=True, kw_only=True)
 class Application(Expression):
-    function: str  # TODO: type?
-    arguments: typing.List[Expression]
+    function: typing.Union[Variable, Operator]
+    args: typing.List[Expression]
 
 
 # STATEMENTS
@@ -68,31 +96,74 @@ class Statement(Node):
     pass
 
 
+def stmt_convert(l: typing.List[Statement]) -> typing.List[Statement]:
+    return sum(
+        (e.statements if isinstance(e, InlinedBlock) else [e] for e in l),
+        []
+    )
+
+
+@attr.s(frozen=True, kw_only=True)
+class Block(Statement):
+    # unroll inlined blocks in converter
+    statements = attr.ib(type=typing.List[Statement], converter=stmt_convert)
+
+
+# InlinedBlock does not generate separate scope, it is to be inlined in the parent block
 @attr.s(frozen=True, auto_attribs=True, kw_only=True)
-class Assignment(Statement):
-    var: str
+class InlinedBlock(Statement):
+    statements: typing.List[Statement]
+
+
+@attr.s(frozen=True, auto_attribs=True, kw_only=True)
+class FreeExpression(Statement):
     expr: Expression
 
 
 @attr.s(frozen=True, auto_attribs=True, kw_only=True)
-class Block(Statement):
-    statements: typing.List[Statement]
+class Declaration(Statement):
+    type: Type
+    var: Variable
+
+
+@attr.s(frozen=True, auto_attribs=True, kw_only=True)
+class Assignment(Statement):
+    var: Variable
+    expr: Expression
+
+
+@attr.s(frozen=True, auto_attribs=True, kw_only=True)
+class Return(Statement):
+    val: typing.Optional[Expression]
+
+
+@attr.s(frozen=True, auto_attribs=True, kw_only=True)
+class If(Statement):
+    cond: Expression
+    then_branch: Statement
+    else_branch: Statement
+
+
+@attr.s(frozen=True, auto_attribs=True, kw_only=True)
+class While(Statement):
+    cond: Expression
+    body: Statement
 
 
 # TOPLEVEL
 
 
 @attr.s(frozen=True, auto_attribs=True, kw_only=True)
-class Function(Node):
-    type: types.Type
+class FunctionDeclaration(Node):
+    type: Type
     name: str
     params: typing.List[str]
-    body: Block
+    body: Statement
 
 
 @attr.s(frozen=True, auto_attribs=True, kw_only=True)
 class Program(Node):
-    decls: typing.List[Function]
+    decls: typing.List[FunctionDeclaration]
 
 
 def pprint(tree: Node, prefix: str = "") -> None:

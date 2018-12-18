@@ -17,7 +17,7 @@ reserved = [
 ]
 
 
-pos = P.line_info.map(lambda lc: ast.Position(line=lc[0], column=lc[1]))
+pos = P.line_info.combine(lambda l, c: ast.Position(line=l, column=c))
 
 
 def addpos(p):
@@ -61,5 +61,6 @@ number = lexeme(P.regex(r'(0|[1-9][0-9]*)')).map(int)
 def identifier():
     lex = yield lexeme(P.regex(r"[_a-zA-Z][_'a-zA-Z0-9]*"))
     if lex in reserved:
-        return P.fail("not a reserved identifier")
+        # TODO: soft error into some kind of a global structure
+        return P.fail("<not a reserved identifier>")
     return lex

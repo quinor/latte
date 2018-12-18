@@ -1,22 +1,6 @@
 import parsy as P
 from . import general as G
 from .. import ast
-from .general import * # noqa
-
-
-variable = G.addpos(G.identifier.map(lambda v: ast.Variable(var=v)))
-
-
-int_literal = G.addpos(G.number.map(lambda v: ast.IConstant(val=v)))
-
-
-bool_literal = G.addpos(
-    (G.rword("true").result(True) | G.rword("false").result(False))
-    .map(lambda v: ast.BConstant(val=v))
-)
-
-
-string_literal = G.addpos(P.regex(r'".*?"').map(lambda s: ast.SConstant(val=s)))
 
 
 unary_operator_map = {
@@ -40,6 +24,22 @@ binary_operator_map = {
     "||": ast.Operator(symbol="||", name="or", precedence=15, associativity="left"),
 }
 
+
+variable = G.addpos(G.identifier.map(lambda v: ast.Variable(var=v)))
+
+
+int_literal = G.addpos(G.number.map(lambda v: ast.IConstant(val=v)))
+
+
+bool_literal = G.addpos(
+    (G.rword("true").result(True) | G.rword("false").result(False))
+    .map(lambda v: ast.BConstant(val=v))
+)
+
+
+string_literal = G.addpos(P.regex(r'".*?"').map(lambda s: ast.SConstant(val=s)))
+
+
 unary_operator = G.addpos(P.alt(*map(
     lambda k: G.rword(k).result(unary_operator_map[k]),
     unary_operator_map.keys()
@@ -53,13 +53,39 @@ binary_operator = G.addpos(P.alt(*map(
 
 
 @P.generate
-def single_expression():
+def parens_expression():
     start = yield G.pos
-    unary = yield unary_operator.optional()
-    elt = yield variable | int_literal | bool_literal | string_literal | G.parens(expression)
+    called_fn = yield variable.optional()
+    params = yield G.parens(expression.sep_by(G.rword(",")))
     end = yield G.pos
+    if called_fn is not None:
+        return ast.Application(
+            start=start,
+            end=end,
+            function=called_fn,
+            args=params)
+    else:
+        if len(params) != 1:
+            # TODO: soft error of some kind
+            return P.fail("a single expression")
+        else:
+            return params[0]
+
+
+@P.generate
+def single_expression():
+    unary = yield unary_operator.optional()
+
+    # ordering below: variable after parens_expression to parse function calls correctly
+    elt = yield P.alt(
+        int_literal,
+        bool_literal,
+        string_literal,
+        parens_expression,
+        variable
+    )
     if unary is not None:
-        return ast.Application(start=start, end=end, function=unary, arguments=[elt])
+        return ast.Application(start=unary.start, end=elt.end, function=unary, args=[elt])
     else:
         return elt
 
@@ -80,7 +106,7 @@ def expression():
             start=h1.start,
             end=h2.end,
             function=o,
-            arguments=[h1, h2]
+            args=[h1, h2]
         ))
 
     for op, val in rest:

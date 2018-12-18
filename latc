@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
-from lattec.parser import expressions
+import parsy as P
+from lattec.parser import statements
 from lattec import ast
 # import argparse
 
@@ -12,4 +13,21 @@ from lattec import ast
 # args = argp.parse_args()
 
 # ast.pprint(expressions.expression.parse("2 + 3*4"))
-ast.pprint(expressions.expression.parse("2 + -3 * 7 + 11*(3==2 + 8)"))
+try:
+    ast.pprint(statements.statement.parse(
+r"""{
+  int r;
+  int n;
+  r = 1;
+  n = a;
+  while (n > 0)
+  {
+    r = r * n;
+    n = n - 1;
+  }
+  return r;
+}
+"""
+))
+except P.ParseError as e:
+    print(e)
