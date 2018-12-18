@@ -96,7 +96,7 @@ class Statement(Node):
     pass
 
 
-def stmt_convert(l: typing.List[Statement]) -> typing.List[Statement]:
+def _stmt_convert(l: typing.List[Statement]) -> typing.List[Statement]:
     return sum(
         (e.statements if isinstance(e, InlinedBlock) else [e] for e in l),
         []
@@ -106,7 +106,7 @@ def stmt_convert(l: typing.List[Statement]) -> typing.List[Statement]:
 @attr.s(frozen=True, kw_only=True)
 class Block(Statement):
     # unroll inlined blocks in converter
-    statements = attr.ib(type=typing.List[Statement], converter=stmt_convert)
+    statements = attr.ib(type=typing.List[Statement], converter=_stmt_convert)
 
 
 # InlinedBlock does not generate separate scope, it is to be inlined in the parent block
@@ -157,7 +157,7 @@ class While(Statement):
 class FunctionDeclaration(Node):
     type: Type
     name: str
-    params: typing.List[str]
+    params: typing.List[Variable]
     body: Statement
 
 

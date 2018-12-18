@@ -8,13 +8,13 @@ from .. import ast
 @G.addpos
 @P.generate
 def block():
-    yield G.rword("{")
+    yield G.symbol("{")
     ret = yield (
-        (statement << G.rword(";").optional())
+        statement
         .many()
         .map(lambda l: ast.Block(statements=l))
     )
-    yield G.rword("}")
+    yield G.symbol("}")
     return ret
 
 
@@ -23,7 +23,7 @@ def block():
 def declaration():
     type = yield T.type
     decls = yield (
-        P.seq(E.variable, (G.rword("=") >> E.expression).optional())
+        P.seq(E.variable, (G.symbol("=") >> E.expression).optional())
         .combine(
             lambda v, e:
                 [ast.Declaration(start=v.start, end=v.end, type=type, var=v)] +
@@ -35,7 +35,7 @@ def declaration():
 
 
 assignment = G.addpos(
-    P.seq(E.variable, G.rword("=") >> E.expression)
+    P.seq(E.variable, G.symbol("=") >> E.expression)
     .combine(lambda v, e: ast.Assignment(var=v, expr=e))
 )
 
@@ -44,7 +44,7 @@ free_expr = E.expression.map(lambda e: ast.FreeExpression(start=e.start, end=e.e
 
 
 plusplus = G.addpos(
-    (E.variable << G.rword("++")).map(lambda v: ast.Assignment(
+    (E.variable << G.symbol("++")).map(lambda v: ast.Assignment(
         var=v,
         expr=ast.Application(
             function=E.binary_operator_map["+"],
@@ -55,7 +55,7 @@ plusplus = G.addpos(
 
 
 minusminus = G.addpos(
-    (E.variable << G.rword("--")).map(lambda v: ast.Assignment(
+    (E.variable << G.symbol("--")).map(lambda v: ast.Assignment(
         var=v,
         expr=ast.Application(
             function=E.binary_operator_map["-"],
@@ -65,7 +65,15 @@ minusminus = G.addpos(
 )
 
 
-ret = G.addpos((G.rword("ret") >> E.expression.optional()).map(lambda v: ast.Return(val=v)))
+@G.addpos
+@P.generate
+def ret():
+    yield G.rword("return")
+    expr = yield E.expression.optional()
+    print(expr)
+    if not expr:
+        yield G.symbol(";")
+    return ast.Return(val=expr)
 
 
 @G.addpos
@@ -75,6 +83,7 @@ def if_stmt():
     cond = yield G.parens(E.expression)
     then_branch = yield statement
     else_branch = yield (G.rword("else") >> statement).optional()
+    print(else_branch)
     return ast.If(cond=cond, then_branch=then_branch, else_branch=else_branch)
 
 
@@ -97,4 +106,4 @@ statement = P.alt(
     if_stmt,
     while_stmt,
     free_expr
-)
+) << G.symbol(";").optional()

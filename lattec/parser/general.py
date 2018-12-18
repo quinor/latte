@@ -46,12 +46,20 @@ def lexeme(p):
     return p << sc
 
 
-def rword(str):
+def symbol(str):
     return lexeme(P.string(str))
 
 
+def rword(str):
+    @lexeme
+    @P.generate
+    def rword_impl():
+        yield P.string(str)
+        yield identifier.should_fail("too long identifier")
+    return rword_impl
+
 def parens(p):
-    return rword("(") >> p << rword(")")
+    return symbol("(") >> p << symbol(")")
 
 
 number = lexeme(P.regex(r'(0|[1-9][0-9]*)')).map(int)

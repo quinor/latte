@@ -41,13 +41,13 @@ string_literal = G.addpos(P.regex(r'".*?"').map(lambda s: ast.SConstant(val=s)))
 
 
 unary_operator = G.addpos(P.alt(*map(
-    lambda k: G.rword(k).result(unary_operator_map[k]),
+    lambda k: G.symbol(k).result(unary_operator_map[k]),
     unary_operator_map.keys()
 )))
 
 
 binary_operator = G.addpos(P.alt(*map(
-    lambda k: G.rword(k).result(binary_operator_map[k]),
+    lambda k: G.symbol(k).result(binary_operator_map[k]),
     binary_operator_map.keys()
 )))
 
@@ -56,7 +56,7 @@ binary_operator = G.addpos(P.alt(*map(
 def parens_expression():
     start = yield G.pos
     called_fn = yield variable.optional()
-    params = yield G.parens(expression.sep_by(G.rword(",")))
+    params = yield G.parens(expression.sep_by(G.symbol(",")))
     end = yield G.pos
     if called_fn is not None:
         return ast.Application(
@@ -76,7 +76,7 @@ def parens_expression():
 def single_expression():
     unary = yield unary_operator.optional()
 
-    # ordering below: variable after parens_expression to parse function calls correctly
+    # ordering below: variable after parens_expression to parse function calls correctly!
     elt = yield P.alt(
         int_literal,
         bool_literal,
