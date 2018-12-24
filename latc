@@ -1,28 +1,15 @@
 #!/usr/bin/env python3
 
-import parsy as P
-from lattec import parser
-from lattec import ast
-# import argparse
+from lattec import compiler
+import argparse
 
 
-# argp = argparse.ArgumentParser()
-# argp.add_argument("input", help="compiler input file")
-# argp.add_argument("-o", metavar="output_file", help="compiler output file", default=None)
+argp = argparse.ArgumentParser()
+argp.add_argument("input", help="compiler input file")
+argp.add_argument("-o", metavar="output_file", help="compiler output file", default=None)
+argp.add_argument("--silent", dest="silent", help="silences warnings",
+    action='store_true', default=False)
 
-# args = argp.parse_args()
+args = argp.parse_args()
 
-# ast.pprint(expressions.expression.parse("2 + 3*4"))
-try:
-    ast.pprint(parser.program_parser.parse(
-r"""
-int mfac(int n) {
-    if (n == 0)
-      returna;
-    else
-      return n * nfac(n-1);
-}
-"""
-))
-except P.ParseError as e:
-    print(e)
+compiler.compile(args.input, args.o, args.silent)

@@ -1,1 +1,1 @@
-from .toplevel import program as program_parser # noqa
+from .toplevel import program_parser # noqa

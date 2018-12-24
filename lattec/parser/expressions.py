@@ -1,31 +1,39 @@
 import parsy as P
 from . import general as G
-from .. import ast
+from .. import ast, errors
 
 
 unary_operator_map = {
-    "-": ast.Operator(symbol="-", name="unary_minus", precedence=3, associativity="right"),
-    "!": ast.Operator(symbol="!", name="unary_not", precedence=3, associativity="right"),
+    "-": ast.Operator(
+        symbol="-", name="__builtin__unary_minus", precedence=3, associativity="right"),
+    "!": ast.Operator(
+        symbol="!", name="__builtin__unary_not", precedence=3, associativity="right"),
 }
 
+
+# operator order such that prefixes are parsed after their supersets (ie. <= and <)
 binary_operator_map = {
-    "%": ast.Operator(symbol="%", name="mod", precedence=5, associativity="left"),
-    "*": ast.Operator(symbol="*", name="mul", precedence=5, associativity="left"),
-    "/": ast.Operator(symbol="/", name="div", precedence=5, associativity="left"),
-    "+": ast.Operator(symbol="+", name="add", precedence=6, associativity="left"),
-    "-": ast.Operator(symbol="-", name="sub", precedence=6, associativity="left"),
-    "<":  ast.Operator(symbol="<",  name="lt", precedence=9, associativity="left"),
-    "<=": ast.Operator(symbol="<=", name="le", precedence=9, associativity="left"),
-    ">":  ast.Operator(symbol=">",  name="gt", precedence=9, associativity="left"),
-    ">=": ast.Operator(symbol=">=", name="ge", precedence=9, associativity="left"),
-    "==": ast.Operator(symbol="==", name="eq", precedence=10, associativity="left"),
-    "!=": ast.Operator(symbol="!=", name="ne", precedence=10, associativity="left"),
-    "&&": ast.Operator(symbol="&&", name="and", precedence=14, associativity="left"),
-    "||": ast.Operator(symbol="||", name="or", precedence=15, associativity="left"),
+    "%": ast.Operator(symbol="%", name="__builtin__mod", precedence=5, associativity="left"),
+    "*": ast.Operator(symbol="*", name="__builtin__mul", precedence=5, associativity="left"),
+    "/": ast.Operator(symbol="/", name="__builtin__div", precedence=5, associativity="left"),
+    "+": ast.Operator(symbol="+", name="__builtin__add", precedence=6, associativity="left"),
+    "-": ast.Operator(symbol="-", name="__builtin__sub", precedence=6, associativity="left"),
+    "<=": ast.Operator(symbol="<=", name="__builtin__le", precedence=9, associativity="left"),
+    "<":  ast.Operator(symbol="<",  name="__builtin__lt", precedence=9, associativity="left"),
+    ">=": ast.Operator(symbol=">=", name="__builtin__ge", precedence=9, associativity="left"),
+    ">":  ast.Operator(symbol=">",  name="__builtin__gt", precedence=9, associativity="left"),
+    "==": ast.Operator(symbol="==", name="__builtin__eq", precedence=10, associativity="left"),
+    "!=": ast.Operator(symbol="!=", name="__builtin__ne", precedence=10, associativity="left"),
+    "&&": ast.Operator(symbol="&&", name="__builtin__and", precedence=14, associativity="left"),
+    "||": ast.Operator(symbol="||", name="__builtin__or", precedence=15, associativity="left"),
 }
 
 
 variable = G.addpos(G.identifier.map(lambda v: ast.Variable(var=v)))
+
+
+def newvar(v: ast.Variable) -> ast.NewVariable:
+    return ast.NewVariable(start=v.start, end=v.end, var=v.var)
 
 
 int_literal = G.addpos(G.number.map(lambda v: ast.IConstant(val=v)))
@@ -34,22 +42,28 @@ int_literal = G.addpos(G.number.map(lambda v: ast.IConstant(val=v)))
 bool_literal = G.addpos(
     (G.rword("true").result(True) | G.rword("false").result(False))
     .map(lambda v: ast.BConstant(val=v))
+    .desc("boolean literal")
 )
 
 
-string_literal = G.addpos(P.regex(r'".*?"').map(lambda s: ast.SConstant(val=s)))
+string_literal = G.addpos(
+    P.regex(r'".*?"').map(lambda s: ast.SConstant(val=s)).desc("string literal"))
 
 
 unary_operator = G.addpos(P.alt(*map(
     lambda k: G.symbol(k).result(unary_operator_map[k]),
     unary_operator_map.keys()
-)))
+)).desc("unary operator"))
 
 
 binary_operator = G.addpos(P.alt(*map(
     lambda k: G.symbol(k).result(binary_operator_map[k]),
     binary_operator_map.keys()
-)))
+)).desc("binary operator"))
+
+
+def var_from_op(op: ast.Operator) -> ast.Variable:
+    return ast.Variable(start=op.start, end=op.end, var=op.name)
 
 
 @P.generate
@@ -67,7 +81,13 @@ def parens_expression():
     else:
         if len(params) != 1:
             # TODO: soft error of some kind
-            return P.fail("a single expression")
+            errors.add_error(errors.Error(
+                start=start,
+                end=end,
+                kind=errors.ParseKind.MalformedParenExpr,
+                message="Parens expression has got more than one comma-separated element"
+            ))
+            return ast.Nothing()
         else:
             return params[0]
 
@@ -85,6 +105,7 @@ def single_expression():
         variable
     )
     if unary is not None:
+        unary = var_from_op(unary)
         return ast.Application(start=unary.start, end=elt.end, function=unary, args=[elt])
     else:
         return elt
@@ -102,6 +123,7 @@ def expression():
         h2 = val_stack.pop()
         h1 = val_stack.pop()
         o = op_stack.pop()
+        o = var_from_op(o)
         val_stack.append(ast.Application(
             start=h1.start,
             end=h2.end,

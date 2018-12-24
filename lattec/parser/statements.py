@@ -7,10 +7,10 @@ from .. import ast
 
 @G.addpos
 @P.generate
-def block():
+def brace_block():
     yield G.symbol("{")
     ret = yield (
-        statement
+        raw_statement
         .many()
         .map(lambda l: ast.Block(statements=l))
     )
@@ -26,28 +26,30 @@ def declaration():
         P.seq(E.variable, (G.symbol("=") >> E.expression).optional())
         .combine(
             lambda v, e:
-                [ast.Declaration(start=v.start, end=v.end, type=type, var=v)] +
+                [ast.Declaration(start=v.start, end=v.end, type=type, var=E.newvar(v))] +
                 ([ast.Assignment(start=v.start, end=e.end, var=v, expr=e)] if e else [])
         )
-        .at_least(1)
+        .sep_by(G.symbol(","), min=1)
     )
+    yield G.symbol(";")
     return ast.InlinedBlock(statements=sum(decls, []))
 
 
 assignment = G.addpos(
     P.seq(E.variable, G.symbol("=") >> E.expression)
-    .combine(lambda v, e: ast.Assignment(var=v, expr=e))
+    .combine(lambda v, e: ast.Assignment(var=v, expr=e)) << G.symbol(";")
 )
 
 
-free_expr = E.expression.map(lambda e: ast.FreeExpression(start=e.start, end=e.end, expr=e))
+free_expr = (E.expression << G.symbol(";")).map(
+    lambda e: ast.FreeExpression(start=e.start, end=e.end, expr=e))
 
 
 plusplus = G.addpos(
-    (E.variable << G.symbol("++")).map(lambda v: ast.Assignment(
+    (E.variable << G.symbol("++") << G.symbol(";")).map(lambda v: ast.Assignment(
         var=v,
         expr=ast.Application(
-            function=E.binary_operator_map["+"],
+            function=E.var_from_op(E.binary_operator_map["+"]),
             args=[v, ast.IConstant(val=1)]
         )
     ))
@@ -55,10 +57,10 @@ plusplus = G.addpos(
 
 
 minusminus = G.addpos(
-    (E.variable << G.symbol("--")).map(lambda v: ast.Assignment(
+    (E.variable << G.symbol("--") << G.symbol(";")).map(lambda v: ast.Assignment(
         var=v,
         expr=ast.Application(
-            function=E.binary_operator_map["-"],
+            function=E.var_from_op(E.binary_operator_map["-"]),
             args=[v, ast.IConstant(val=1)]
         )
     ))
@@ -70,9 +72,7 @@ minusminus = G.addpos(
 def ret():
     yield G.rword("return")
     expr = yield E.expression.optional()
-    print(expr)
-    if not expr:
-        yield G.symbol(";")
+    yield G.symbol(";")
     return ast.Return(val=expr)
 
 
@@ -83,7 +83,6 @@ def if_stmt():
     cond = yield G.parens(E.expression)
     then_branch = yield statement
     else_branch = yield (G.rword("else") >> statement).optional()
-    print(else_branch)
     return ast.If(cond=cond, then_branch=then_branch, else_branch=else_branch)
 
 
@@ -96,8 +95,8 @@ def while_stmt():
     return ast.While(cond=cond, body=body)
 
 
-statement = P.alt(
-    block,
+raw_statement = P.alt(
+    brace_block,
     declaration,
     assignment,
     plusplus,
@@ -106,4 +105,13 @@ statement = P.alt(
     if_stmt,
     while_stmt,
     free_expr
-) << G.symbol(";").optional()
+)
+
+
+@G.addpos
+@P.generate
+def statement():
+    st = yield raw_statement
+    if not isinstance(st, ast.Block):
+        return ast.Block(statements=[st])
+    return st

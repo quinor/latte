@@ -1,20 +1,24 @@
 import typing
 import attr
+from . import colors
 
 
 # GENERAL
 
 
-@attr.s(frozen=True, auto_attribs=True, kw_only=True)
+@attr.s(frozen=True, auto_attribs=True, kw_only=True, repr=False)
 class Position:
     line: int
     column: int
+    def __repr__(self):
+        return f"line {colors.white(str(self.line))}, column {colors.white(str(self.column))}"
 
 
 @attr.s(frozen=True, auto_attribs=True, kw_only=True)
 class Node:
-    start: typing.Optional[Position] = None
-    end: typing.Optional[Position] = None
+    start: typing.Optional[Position] = attr.ib(cmp=False, default=None)
+    end: typing.Optional[Position] =  attr.ib(cmp=False, default=None)
+    attrs: dict = attr.ib(factory=dict)
 
 
 @attr.s(frozen=True, auto_attribs=True, kw_only=True)
@@ -25,6 +29,16 @@ class Operator(Node):
     associativity: str  # "left" or "right"
 
 
+@attr.s(frozen=True, auto_attribs=True, kw_only=True)
+class Nothing(Node):
+    pass
+
+
+@attr.s(frozen=True, auto_attribs=True, kw_only=True)
+class NewVariable(Node):
+    var: str
+
+
 # TYPES
 
 
@@ -33,25 +47,42 @@ class Type(Node):
     pass
 
 
-@attr.s(frozen=True, auto_attribs=True, kw_only=True)
+@attr.s(frozen=True, auto_attribs=True, kw_only=True, repr=False)
+class UndefinedType(Type):
+    def __repr__(self):
+        return colors.white("<Undefined>")
+
+
+@attr.s(frozen=True, auto_attribs=True, kw_only=True, repr=False)
 class Int(Type):
-    pass
+    def __repr__(self):
+        return colors.white("int")
 
 
-@attr.s(frozen=True, auto_attribs=True, kw_only=True)
+@attr.s(frozen=True, auto_attribs=True, kw_only=True, repr=False)
 class Bool(Type):
-    pass
+    def __repr__(self):
+        return colors.white("boolean")
 
 
-@attr.s(frozen=True, auto_attribs=True, kw_only=True)
+@attr.s(frozen=True, auto_attribs=True, kw_only=True, repr=False)
 class String(Type):
-    pass
+    def __repr__(self):
+        return colors.white("string")
+
+
+@attr.s(frozen=True, auto_attribs=True, kw_only=True, repr=False)
+class Void(Type):
+    def __repr__(self):
+        return colors.white("void")
 
 
 @attr.s(frozen=True, auto_attribs=True, kw_only=True)
 class Function(Type):
     params: typing.List[Type]
     ret: Type
+    def __repr__(self):
+        return colors.white(f"{ret}({', '.join(str(e) for e in params)})")
 
 
 # EXPRESSIONS
@@ -84,7 +115,7 @@ class SConstant(Expression):
 
 @attr.s(frozen=True, auto_attribs=True, kw_only=True)
 class Application(Expression):
-    function: typing.Union[Variable, Operator]
+    function: Variable
     args: typing.List[Expression]
 
 
@@ -96,7 +127,7 @@ class Statement(Node):
     pass
 
 
-def _stmt_convert(l: typing.List[Statement]) -> typing.List[Statement]:
+def _blck_convert(l: typing.List[Statement]) -> typing.List[Statement]:
     return sum(
         (e.statements if isinstance(e, InlinedBlock) else [e] for e in l),
         []
@@ -106,7 +137,7 @@ def _stmt_convert(l: typing.List[Statement]) -> typing.List[Statement]:
 @attr.s(frozen=True, kw_only=True)
 class Block(Statement):
     # unroll inlined blocks in converter
-    statements = attr.ib(type=typing.List[Statement], converter=_stmt_convert)
+    statements = attr.ib(type=typing.List[Statement], converter=_blck_convert)
 
 
 # InlinedBlock does not generate separate scope, it is to be inlined in the parent block
@@ -123,7 +154,7 @@ class FreeExpression(Statement):
 @attr.s(frozen=True, auto_attribs=True, kw_only=True)
 class Declaration(Statement):
     type: Type
-    var: Variable
+    var: NewVariable
 
 
 @attr.s(frozen=True, auto_attribs=True, kw_only=True)
@@ -140,14 +171,14 @@ class Return(Statement):
 @attr.s(frozen=True, auto_attribs=True, kw_only=True)
 class If(Statement):
     cond: Expression
-    then_branch: Statement
-    else_branch: Statement
+    then_branch: Block
+    else_branch: Block
 
 
 @attr.s(frozen=True, auto_attribs=True, kw_only=True)
 class While(Statement):
     cond: Expression
-    body: Statement
+    body: Block
 
 
 # TOPLEVEL
@@ -157,8 +188,8 @@ class While(Statement):
 class FunctionDeclaration(Node):
     type: Type
     name: str
-    params: typing.List[Variable]
-    body: Statement
+    params: typing.List[NewVariable]
+    body: Block
 
 
 @attr.s(frozen=True, auto_attribs=True, kw_only=True)
@@ -170,14 +201,20 @@ def pprint(tree: Node, prefix: str = "") -> None:
     d = attr.asdict(tree, recurse=False)
     print(f"{tree.__class__.__name__}")
     for k, v in d.items():
-        if k not in ["start", "end"]:
+        if k not in ["start", "end", "attrs"]:
             print(f"{prefix}{k}: ", end="")
             if isinstance(v, list):
                 print()
                 for i, e in enumerate(v):
                     print(f"{prefix}  {i}: ", end="")
-                    pprint(e, prefix+"    ")
+                    if isinstance(e, Node):
+                        pprint(e, prefix+"    ")
+                    else:
+                        print(f"{v}")
             elif isinstance(v, Node):
                 pprint(v, prefix+"  ")
             else:
                 print(f"{v}")
+
+
+undef_t = UndefinedType()
