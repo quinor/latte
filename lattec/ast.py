@@ -10,6 +10,7 @@ from . import colors
 class Position:
     line: int
     column: int
+
     def __repr__(self):
         return f"line {colors.white(str(self.line))}, column {colors.white(str(self.column))}"
 
@@ -17,7 +18,7 @@ class Position:
 @attr.s(frozen=True, auto_attribs=True, kw_only=True)
 class Node:
     start: typing.Optional[Position] = attr.ib(cmp=False, default=None)
-    end: typing.Optional[Position] =  attr.ib(cmp=False, default=None)
+    end: typing.Optional[Position] = attr.ib(cmp=False, default=None)
     attrs: dict = attr.ib(factory=dict)
 
 
@@ -81,8 +82,9 @@ class Void(Type):
 class Function(Type):
     params: typing.List[Type]
     ret: Type
+
     def __repr__(self):
-        return colors.white(f"{ret}({', '.join(str(e) for e in params)})")
+        return colors.white(f"{self.ret}({', '.join(str(e) for e in self.params)})")
 
 
 # EXPRESSIONS

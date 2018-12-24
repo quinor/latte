@@ -49,6 +49,7 @@ def errors() -> typing.List[Error]:
 def add_error(e: Error) -> None:
     _l.append(e)
 
+
 def print_errors() -> None:
     for e in errors():
         print(

@@ -193,16 +193,17 @@ def infer_stmt_post(stmt: ast.Statement) -> None:
     if isinstance(stmt, ast.If):
         stmt.attrs["returns"] = (
             stmt.then_branch.attrs["returns"]
-            and stmt.else_branch != None
+            and stmt.else_branch is not None
             and stmt.else_branch.attrs["returns"]
         )
 
     if isinstance(stmt, ast.While):
         stmt.attrs["returns"] = False
 
-def infer_tld_pre(tld: ast.Statement) -> None:
+
+def infer_tld_pre(tld: ast.Node) -> None:
     if isinstance(tld, ast.FunctionDeclaration):
-        d = {}
+        d: dict = {}
         for param in tld.params:
             if param.var in d:
                 errors.add_error(errors.Error(
@@ -219,22 +220,23 @@ def infer_tld_pre(tld: ast.Statement) -> None:
         fn_t = tld.type
         scope_stack[-1].append("return")
         var_types["return"].append(fn_t.ret)
-        for t, v in zip(fn_t.params, tld.params):
+        for v, t in zip(tld.params, fn_t.params):
             var_types[v.var].append(t)
             scope_stack[-1].append(v.var)
 
-        for v, t in prelude_types:
-            var_types[v].append(t)
+        for vv, tt in prelude_types:
+            var_types[vv].append(tt)
 
     if isinstance(tld, ast.Program):
         for fn in tld.decls:
             var_types[fn.name].append(fn.type)
 
 
-def infer_tld_post(tld: ast.Statement) -> None:
+def infer_tld_post(tld: ast.Node) -> None:
     if isinstance(tld, ast.FunctionDeclaration):
         for v in scope_stack.pop():
             var_types[v].pop()
+        assert isinstance(tld.type, ast.Function)
         if not tld.body.attrs["returns"] and tld.type.ret != ast.Void():
             errors.add_error(errors.Error(
                 tld.start,
@@ -242,7 +244,6 @@ def infer_tld_post(tld: ast.Statement) -> None:
                 errors.AnalysisKind.FunctionDoesNotReturn,
                 f"There is a path in this function resulting in no return value.",
             ))
-
 
 
 def infer_types_pre(node: ast.Node) -> None:
