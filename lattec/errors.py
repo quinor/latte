@@ -13,7 +13,7 @@ class ParseKind(Kind):
     ParserError = enum.auto()
 
 
-class AnalysisKind(Kind):
+class TypeAnalysisKind(Kind):
     VariableDoesNotExist = enum.auto()
     VariableShadow = enum.auto()
     FunctionNotCallable = enum.auto()
@@ -22,6 +22,7 @@ class AnalysisKind(Kind):
     IncorrectArgumentCount = enum.auto()
     ArgumentTypeMismatch = enum.auto()
     AssignmentTypeMismatch = enum.auto()
+    FunctionCallMismatch = enum.auto()
     ReturnTypeMismatch = enum.auto()
     ConditionTypeMismatch = enum.auto()
     DeadCode = enum.auto()
@@ -50,9 +51,29 @@ def add_error(e: Error) -> None:
     _l.append(e)
 
 
-def print_errors() -> None:
+def print_errors(code: str) -> None:
+    lines = code.split("\n")
     for e in errors():
         print(
-            f"at the {e.start} to the {e.end}\n{colors.red(e.kind.name)}:")
+            f"at {e.start} to {e.end}\n{colors.red(e.kind.name)}:")
         print(f"    {e.message}")
+        if e.start is None or e.end is None:
+            continue
+
+        st = max(e.start.line-3, 0)
+        en = min(e.end.line+2, len(lines))
+        for i in range(st, en):
+            line = lines[i]
+            print(f"{colors.white(str(i+1).rjust(4))}:   {colors.cyan(line)}")
+            if i+1 == e.start.line and i+1 == e.end.line:
+                print(" "*8+colors.red("".join(
+                    "^" if e.start.column <= j and e.end.column >= j else " "
+                    for j in range(len(line))
+                )))
+            elif i+1 == e.start.line:
+                print(" "*8+colors.red(" "*e.start.column + "^"*(len(line) - e.start.column)))
+            elif i+1 == e.end.line:
+                print(" "*8+colors.red("^"*e.end.column + " "*(len(line) - e.end.column)))
+            elif i+1 > e.start.line and i+1 < e.end.line:
+                print(" "*8+colors.red("^"*len(line)))
         print()

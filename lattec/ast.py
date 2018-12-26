@@ -12,7 +12,7 @@ class Position:
     column: int
 
     def __repr__(self):
-        return f"line {colors.white(str(self.line))}, column {colors.white(str(self.column))}"
+        return f"{colors.white(str(self.line))}:{colors.white(str(self.column))}"
 
 
 @attr.s(frozen=True, auto_attribs=True, kw_only=True)
@@ -78,13 +78,18 @@ class Void(Type):
         return colors.white("void")
 
 
-@attr.s(frozen=True, auto_attribs=True, kw_only=True)
+@attr.s(frozen=True, auto_attribs=True, kw_only=True, repr=False)
 class Function(Type):
     params: typing.List[Type]
     ret: Type
 
     def __repr__(self):
         return colors.white(f"{self.ret}({', '.join(str(e) for e in self.params)})")
+
+
+@attr.s(frozen=True, auto_attribs=True, kw_only=True)
+class TypeAlternative(Type):
+    alt: typing.List[Type]
 
 
 # EXPRESSIONS
@@ -190,13 +195,21 @@ class While(Statement):
 class FunctionDeclaration(Node):
     type: Type
     name: str
-    params: typing.List[NewVariable]
+    params: typing.List[Declaration]
     body: Block
 
 
 @attr.s(frozen=True, auto_attribs=True, kw_only=True)
 class Program(Node):
     decls: typing.List[FunctionDeclaration]
+
+
+def newvar_from_var(v: Variable) -> NewVariable:
+    return NewVariable(start=v.start, end=v.end, var=v.var)
+
+
+def decl_from_var_type(v: Variable, t: Type) -> Declaration:
+    return Declaration(start=v.start, end=v.end, type=t, var=newvar_from_var(v))
 
 
 def pprint(tree: Node, prefix: str = "") -> None:

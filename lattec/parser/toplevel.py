@@ -17,7 +17,7 @@ def function():
     hd_end = yield G.pos
     body = yield S.statement
     types = [e[0] for e in params]
-    vars = [E.newvar(e[1]) for e in params]
+    vars = [ast.decl_from_var_type(v, t) for t, v in params]
     type = ast.Function(start=hd_beg, end=hd_end, params=types, ret=ret)
     return ast.FunctionDeclaration(type=type, name=name, params=vars, body=body)
 

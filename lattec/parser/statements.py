@@ -26,7 +26,7 @@ def declaration():
         P.seq(E.variable, (G.symbol("=") >> E.expression).optional())
         .combine(
             lambda v, e:
-                [ast.Declaration(start=v.start, end=v.end, type=type, var=E.newvar(v))] +
+                [ast.decl_from_var_type(v, type)] +
                 ([ast.Assignment(start=v.start, end=e.end, var=v, expr=e)] if e else [])
         )
         .sep_by(G.symbol(","), min=1)

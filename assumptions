@@ -1,7 +1,6 @@
 ASSUMPTIONS TAKEN:
   + * no "," operator, comma only used as a separator in function arguments, calls etc
   + * no ";" as an empty statement - instead of if(...); write if(){}
-  + * ";" is optional everywhere
-    * ANY instr after return unreachable thus error
+  + * ANY instr after return unreachable thus error
     * if-if-else ambiguity: if(...) if(...) unallowed, requires braces for the top if
-  + * ; after <void> return mandatory
+    * spaces preferred over tabs - tabs interfere with pretty print of compiler errors

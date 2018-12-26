@@ -11,6 +11,7 @@ unary_int = ast.Function(params=[ast.Int()], ret=ast.Int())
 binary_bool = ast.Function(params=[ast.Bool(), ast.Bool()], ret=ast.Bool())
 binary_int = ast.Function(params=[ast.Int(), ast.Int()], ret=ast.Int())
 binary_int_bool = ast.Function(params=[ast.Int(), ast.Int()], ret=ast.Bool())
+binary_string_bool = ast.Function(params=[ast.String(), ast.String()], ret=ast.Bool())
 binray_string = ast.Function(params=[ast.String(), ast.String()], ret=ast.String())
 
 prelude_types = [
@@ -24,20 +25,20 @@ prelude_types = [
     ("__builtin__mod", binary_int),
     ("__builtin__mul", binary_int),
     ("__builtin__div", binary_int),
-    ("__builtin__add", binary_int),  # TODO: string
+    ("__builtin__add", ast.TypeAlternative(alt=[binary_int, binray_string])),
     ("__builtin__sub", binary_int),
     ("__builtin__le", binary_int_bool),
     ("__builtin__lt", binary_int_bool),
     ("__builtin__ge", binary_int_bool),
     ("__builtin__gt", binary_int_bool),
-    ("__builtin__eq", binary_int_bool),  # TODO: bool
-    ("__builtin__ne", binary_int_bool),  # TODO: bool
+    ("__builtin__eq", ast.TypeAlternative(alt=[binary_int_bool, binary_string_bool, binary_bool])),
+    ("__builtin__ne", ast.TypeAlternative(alt=[binary_int_bool, binary_string_bool, binary_bool])),
     ("__builtin__and", binary_bool),
     ("__builtin__or", binary_bool),
 ]
 
 
-var_types: typing.Dict[str, typing.List[ast.Type]] = defaultdict(list)
+var_types: typing.Dict[str, typing.List[ast.Declaration]] = defaultdict(list)
 scope_stack: typing.List[typing.List[str]] = []
 
 
@@ -56,12 +57,13 @@ def infer_expr(expr: ast.Expression) -> None:
             errors.add_error(errors.Error(
                 expr.start,
                 expr.end,
-                errors.AnalysisKind.VariableDoesNotExist,
+                errors.TypeAnalysisKind.VariableDoesNotExist,
                 f"variable {expr.var} does not exist in this scope.",
             ))
             expr.attrs["type"] = undef_t
         else:
-            expr.attrs["type"] = var_types[expr.var][-1]
+            expr.attrs["type"] = var_types[expr.var][-1].type
+            expr.attrs["source"] = var_types[expr.var][-1]
 
     if isinstance(expr, ast.Application):
         fn_t = expr.function.attrs["type"]
@@ -70,17 +72,7 @@ def infer_expr(expr: ast.Expression) -> None:
         if fn_t == undef_t:
             expr.attrs["type"] = undef_t
 
-        # checking whether function is well-formed at all
-        elif not isinstance(fn_t, ast.Function):
-            errors.add_error(errors.Error(
-                expr.function.start,
-                expr.function.end,
-                errors.AnalysisKind.FunctionNotCallable,
-                f"This object of type {fn_t} is not callable.",
-            ))
-            expr.attrs["type"] = undef_t
-
-        else:
+        elif isinstance(fn_t, ast.Function):
             expr.attrs["type"] = fn_t.ret
 
             # number of arguments check
@@ -88,7 +80,7 @@ def infer_expr(expr: ast.Expression) -> None:
                 errors.add_error(errors.Error(
                     expr.start,
                     expr.end,
-                    errors.AnalysisKind.IncorrectArgumentCount,
+                    errors.TypeAnalysisKind.IncorrectArgumentCount,
                     f"There are {len(expr.args)} arguments in the function call, "
                     f"should be {len(fn_t.params)}.",
                 ))
@@ -102,10 +94,46 @@ def infer_expr(expr: ast.Expression) -> None:
                     errors.add_error(errors.Error(
                         actual.start,
                         actual.end,
-                        errors.AnalysisKind.ArgumentTypeMismatch,
+                        errors.TypeAnalysisKind.ArgumentTypeMismatch,
                         f"The actual type of a function argument {actual.attrs['type']} does not "
                         f"agree with expected type {expected}.",
                     ))
+
+        # special workaround for polymorphic operators, TODO proper implementation?
+        elif isinstance(fn_t, ast.TypeAlternative):
+            expr.attrs["type"] = ast.undef_t
+            for subtype in fn_t.alt:
+                assert isinstance(subtype, ast.Function)
+                if len(subtype.params) != len(expr.args):
+                    continue
+                if any(
+                    expected != actual.attrs["type"]
+                    for expected, actual in zip(subtype.params, expr.args)
+                ):
+                    continue
+                expr.attrs["type"] = subtype.ret
+                expr.function.attrs["type"] = subtype
+                break
+            if expr.attrs["type"] == ast.undef_t:
+                    errors.add_error(errors.Error(
+                        expr.start,
+                        expr.end,
+                        errors.TypeAnalysisKind.FunctionCallMismatch,
+                        f"Could not match overloaded function call with encountered expression. "
+                        f"Possible function types are: {'; '.join(str(e) for e in fn_t.alt)}. "
+                        f"Encountered argument types are: "
+                        f"({', '.join(str(e.attrs['type']) for e in expr.args)})",
+                    ))
+
+        # if the function isn't well-formed at all
+        else:
+            errors.add_error(errors.Error(
+                expr.function.start,
+                expr.function.end,
+                errors.TypeAnalysisKind.FunctionNotCallable,
+                f"This object of type {fn_t} is not callable.",
+            ))
+            expr.attrs["type"] = undef_t
 
 
 def infer_stmt_pre(stmt: ast.Statement) -> None:
@@ -122,7 +150,7 @@ def infer_stmt_post(stmt: ast.Statement) -> None:
                 errors.add_error(errors.Error(
                     next_st.start,
                     next_st.end,
-                    errors.AnalysisKind.DeadCode,
+                    errors.TypeAnalysisKind.DeadCode,
                     f"This statement (and all of the following statements in this block) are "
                     f"unreachable",
                 ))
@@ -139,10 +167,11 @@ def infer_stmt_post(stmt: ast.Statement) -> None:
             errors.add_error(errors.Error(
                 stmt.start,
                 stmt.end,
-                errors.AnalysisKind.VariableShadow,
-                f"This variable declaration shadows previously declared variable.",  # TODO: at
+                errors.TypeAnalysisKind.VariableShadow,
+                f"This variable declaration shadows previously declared variable. Previous "
+                f"declaration at {var_types[stmt.var.var][-1].start}.",
             ))
-        var_types[stmt.var.var].append(stmt.type)
+        var_types[stmt.var.var].append(stmt)
         scope_stack[-1].append(stmt.var.var)
 
     if isinstance(stmt, ast.Assignment):
@@ -153,7 +182,7 @@ def infer_stmt_post(stmt: ast.Statement) -> None:
             errors.add_error(errors.Error(
                 stmt.start,
                 stmt.end,
-                errors.AnalysisKind.AssignmentTypeMismatch,
+                errors.TypeAnalysisKind.AssignmentTypeMismatch,
                 f"The type of the variable {stmt.var.var} ({tv}) does not "
                 f"agree with the type of the expression ({te}).",
             ))
@@ -161,13 +190,13 @@ def infer_stmt_post(stmt: ast.Statement) -> None:
     if isinstance(stmt, ast.Return):
         stmt.attrs["returns"] = True
         te = stmt.val
-        ret_t = var_types["return"][-1]
+        ret_t = var_types["return"][-1].type
         if te is not None:
             if te.attrs["type"] != undef_t and ret_t != te.attrs["type"]:
                 errors.add_error(errors.Error(
                     stmt.start,
                     stmt.end,
-                    errors.AnalysisKind.ReturnTypeMismatch,
+                    errors.TypeAnalysisKind.ReturnTypeMismatch,
                     f"The type of the function return {ret_t} does not match with the type of the "
                     f"expressiom: {te.attrs['type']}.",
                 ))
@@ -176,7 +205,7 @@ def infer_stmt_post(stmt: ast.Statement) -> None:
                 errors.add_error(errors.Error(
                     stmt.start,
                     stmt.end,
-                    errors.AnalysisKind.ReturnTypeMismatch,
+                    errors.TypeAnalysisKind.ReturnTypeMismatch,
                     f"Return value should exist and be of type {ret_t}.",
                 ))
 
@@ -186,7 +215,7 @@ def infer_stmt_post(stmt: ast.Statement) -> None:
                 errors.add_error(errors.Error(
                     stmt.cond.start,
                     stmt.cond.end,
-                    errors.AnalysisKind.ConditionTypeMismatch,
+                    errors.TypeAnalysisKind.ConditionTypeMismatch,
                     f"This conditional value should be of type {ast.Bool()}, not {cond_t}.",
                 ))
 
@@ -205,31 +234,26 @@ def infer_tld_pre(tld: ast.Node) -> None:
     if isinstance(tld, ast.FunctionDeclaration):
         d: dict = {}
         for param in tld.params:
-            if param.var in d:
+            if param.var.var in d:
                 errors.add_error(errors.Error(
                     param.start,
                     param.end,
-                    errors.AnalysisKind.FunctionSameParameter,
-                    # TODO: at
+                    errors.TypeAnalysisKind.FunctionSameParameter,
                     f"This function already has got another parameter with name {param.var}.",
                 ))
             else:
-                d[param.var] = param
+                d[param.var.var] = param
         scope_stack.append([])
         assert isinstance(tld.type, ast.Function)
         fn_t = tld.type
         scope_stack[-1].append("return")
-        var_types["return"].append(fn_t.ret)
-        for v, t in zip(tld.params, fn_t.params):
-            var_types[v.var].append(t)
-            scope_stack[-1].append(v.var)
-
-        for vv, tt in prelude_types:
-            var_types[vv].append(tt)
+        var_types["return"].append(ast.decl_from_var_type(ast.Variable(var="return"), fn_t.ret))
 
     if isinstance(tld, ast.Program):
+        for v, t in prelude_types:
+            var_types[v].append(ast.decl_from_var_type(ast.Variable(var=v), t))
         for fn in tld.decls:
-            var_types[fn.name].append(fn.type)
+            var_types[fn.name].append(ast.decl_from_var_type(ast.Variable(var=fn.name), fn.type))
 
 
 def infer_tld_post(tld: ast.Node) -> None:
@@ -241,7 +265,7 @@ def infer_tld_post(tld: ast.Node) -> None:
             errors.add_error(errors.Error(
                 tld.start,
                 tld.end,
-                errors.AnalysisKind.FunctionDoesNotReturn,
+                errors.TypeAnalysisKind.FunctionDoesNotReturn,
                 f"There is a path in this function resulting in no return value.",
             ))
 
@@ -271,5 +295,5 @@ def analyze_types(tree: ast.Program) -> None:
 
 
 # TODO: check compile-time consts (attr value in exprs, use in whiles and ifs for transformation)
-# TODO: add locations to variable declarations in some clever way
-# TODO: function overloading
+# ^^^^^ move to separate file
+# TODO: move return completeness check to a separate file

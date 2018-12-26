@@ -67,7 +67,6 @@ number = lexeme(P.regex(r'(0|[1-9][0-9]*)')).map(int).desc("integer")
 def identifier_impl():
     lex = yield lexeme(P.regex(r"[_a-zA-Z][_'a-zA-Z0-9]*"))
     if lex in reserved:
-        # TODO: soft error into some kind of a global structure
         return P.fail("<not a reserved identifier>")
     return lex
 

@@ -32,10 +32,6 @@ binary_operator_map = {
 variable = G.addpos(G.identifier.map(lambda v: ast.Variable(var=v)))
 
 
-def newvar(v: ast.Variable) -> ast.NewVariable:
-    return ast.NewVariable(start=v.start, end=v.end, var=v.var)
-
-
 int_literal = G.addpos(G.number.map(lambda v: ast.IConstant(val=v)))
 
 
@@ -46,8 +42,8 @@ bool_literal = G.addpos(
 )
 
 
-string_literal = G.addpos(
-    P.regex(r'".*?"').map(lambda s: ast.SConstant(val=s)).desc("string literal"))
+string_literal = G.addpos(G.lexeme(
+    P.regex(r'".*?"').map(lambda s: ast.SConstant(val=s)).desc("string literal")))
 
 
 unary_operator = G.addpos(P.alt(*map(
@@ -80,7 +76,6 @@ def parens_expression():
             args=params)
     else:
         if len(params) != 1:
-            # TODO: soft error of some kind
             errors.add_error(errors.Error(
                 start=start,
                 end=end,

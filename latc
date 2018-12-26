@@ -7,8 +7,8 @@ import argparse
 argp = argparse.ArgumentParser()
 argp.add_argument("input", help="compiler input file")
 argp.add_argument("-o", metavar="output_file", help="compiler output file", default=None)
-argp.add_argument("--silent", dest="silent", help="silences warnings",
-    action='store_true', default=False)
+argp.add_argument(
+    "--silent", dest="silent", help="silences errors", action='store_true', default=False)
 
 args = argp.parse_args()
 
