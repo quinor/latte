@@ -1,1 +1,1 @@
-from .typecheck import analyze_types  # noqa
+from .engine import static_analysis, type_analysis  # noqa

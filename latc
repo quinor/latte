@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from lattec import compiler
+from lattec import compiler, config
 import argparse
 
 
@@ -11,5 +11,8 @@ argp.add_argument(
     "--silent", dest="silent", help="silences errors", action='store_true', default=False)
 
 args = argp.parse_args()
+config.cfg["silent"] = args.silent
+config.cfg["input"] = args.input
+config.cfg["output"] = args.o
 
-compiler.compile(args.input, args.o, args.silent)
+compiler.compile()

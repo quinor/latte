@@ -32,6 +32,24 @@ prelude_types = [
     ("__builtin__or", binary_bool),
 ]
 
+const_fn_impls = {
+    "__builtin__unary_minus": lambda x: -x,
+    "__builtin__unary_not": lambda x: not x,
+    "__builtin__mod": lambda x, y: x % y,
+    "__builtin__mul": lambda x, y: x * y,
+    "__builtin__div": lambda x, y: x // y,
+    "__builtin__add": lambda x, y: x + y,
+    "__builtin__sub": lambda x, y: x - y,
+    "__builtin__le": lambda x, y: x <= y,
+    "__builtin__lt": lambda x, y: x < y,
+    "__builtin__ge": lambda x, y: x >= y,
+    "__builtin__gt": lambda x, y: x > y,
+    "__builtin__eq": lambda x, y: x == y,
+    "__builtin__ne": lambda x, y: x != y,
+    "__builtin__and": lambda x, y: x and y,
+    "__builtin__or": lambda x, y: x or y,
+}
+
 
 unary_operator_map = {
     "-": ast.Operator(

@@ -1,15 +1,11 @@
-from .traverse import traverse
 from .. import ast, prelude, errors
 from ..ast import undef_t
-import typing
-from collections import defaultdict
+from .scopes import var_decls
+from . import scopes
+from .. import config
 
 
-var_decls: typing.Dict[str, typing.List[ast.Declaration]] = defaultdict(list)
-scope_stack: typing.List[typing.List[str]] = []
-
-
-def infer_expr(expr: ast.Expression) -> None:
+def expr_post(expr: ast.Expression) -> None:
     if isinstance(expr, ast.IConstant):
         expr.attrs["type"] = ast.Int()
 
@@ -30,7 +26,6 @@ def infer_expr(expr: ast.Expression) -> None:
             expr.attrs["type"] = undef_t
         else:
             expr.attrs["type"] = var_decls[expr.var][-1].type
-            expr.attrs["source"] = var_decls[expr.var][-1]
 
     if isinstance(expr, ast.Application):
         fn_t = expr.function.attrs["type"]
@@ -103,46 +98,30 @@ def infer_expr(expr: ast.Expression) -> None:
             expr.attrs["type"] = undef_t
 
 
-def infer_stmt_pre(stmt: ast.Statement) -> None:
-    if isinstance(stmt, ast.Block):
-        scope_stack.append([])
-
-
-def infer_stmt_post(stmt: ast.Statement) -> None:
-    if isinstance(stmt, ast.Block):
-        stmt.attrs["returns"] = any(e.attrs["returns"] for e in stmt.statements)
-        for i, e in enumerate(stmt.statements):
-            if i != len(stmt.statements)-1 and e.attrs["returns"]:
-                next_st = stmt.statements[i+1]
-                errors.add_error(errors.Error(
-                    next_st.start,
-                    next_st.end,
-                    errors.TypeAnalysisKind.DeadCode,
-                    f"This statement (and all of the following statements in this block) are "
-                    f"unreachable",
-                ))
-        for v in scope_stack.pop():
-            var_decls[v].pop()
-
-    if isinstance(stmt, ast.FreeExpression):
-        stmt.attrs["returns"] = False
-        pass  # TODO: unused
+def stmt_post(stmt: ast.Statement) -> None:
 
     if isinstance(stmt, ast.Declaration):
-        stmt.attrs["returns"] = False
         if len(var_decls[stmt.var.var]) > 0:
-            errors.add_error(errors.Error(
-                stmt.start,
-                stmt.end,
-                errors.TypeAnalysisKind.VariableShadow,
-                f"This variable declaration shadows previously declared variable. Previous "
-                f"declaration at {var_decls[stmt.var.var][-1].start}.",
-            ))
-        var_decls[stmt.var.var].append(stmt)
-        scope_stack[-1].append(stmt.var.var)
+            # redeclaration
+            if stmt.var.var in scopes.scope_stack[-1]:
+                errors.add_error(errors.Error(
+                    stmt.start,
+                    stmt.end,
+                    errors.TypeAnalysisKind.VariableRedeclaration,
+                    f"This variable has been declared before in this scope. Previous "
+                    f"declaration at {var_decls[stmt.var.var][-1].start}.",
+                ))
+            # shadow
+            elif config.cfg["wshadow"]:
+                errors.add_error(errors.Error(
+                    stmt.start,
+                    stmt.end,
+                    errors.TypeAnalysisKind.VariableShadow,
+                    f"This variable declaration shadows previously declared variable. Previous "
+                    f"declaration at {var_decls[stmt.var.var][-1].start}.",
+                ))
 
     if isinstance(stmt, ast.Assignment):
-        stmt.attrs["returns"] = False
         tv = stmt.var.attrs["type"]
         te = stmt.expr.attrs["type"]
         if tv != undef_t and te != undef_t and tv != te:
@@ -155,7 +134,6 @@ def infer_stmt_post(stmt: ast.Statement) -> None:
             ))
 
     if isinstance(stmt, ast.Return):
-        stmt.attrs["returns"] = True
         te = stmt.val
         ret_t = var_decls["return"][-1].type
         if te is not None:
@@ -186,18 +164,8 @@ def infer_stmt_post(stmt: ast.Statement) -> None:
                     f"This conditional value should be of type {ast.Bool()}, not {cond_t}.",
                 ))
 
-    if isinstance(stmt, ast.If):
-        stmt.attrs["returns"] = (
-            stmt.then_branch.attrs["returns"]
-            and stmt.else_branch is not None
-            and stmt.else_branch.attrs["returns"]
-        )
 
-    if isinstance(stmt, ast.While):
-        stmt.attrs["returns"] = False
-
-
-def infer_tld_pre(tld: ast.Node) -> None:
+def tld_pre(tld: ast.Node) -> None:
     if isinstance(tld, ast.FunctionDeclaration):
         d: dict = {}
         for param in tld.params:
@@ -210,11 +178,6 @@ def infer_tld_pre(tld: ast.Node) -> None:
                 ))
             else:
                 d[param.var.var] = param
-        scope_stack.append([])
-        assert isinstance(tld.type, ast.Function)
-        fn_t = tld.type
-        scope_stack[-1].append("return")
-        var_decls["return"].append(ast.decl_from_var_type(ast.Variable(var="return"), fn_t.ret))
 
     if isinstance(tld, ast.Program):
         for v, t in prelude.prelude_types:
@@ -223,42 +186,15 @@ def infer_tld_pre(tld: ast.Node) -> None:
             var_decls[fn.name].append(ast.decl_from_var_type(ast.Variable(var=fn.name), fn.type))
 
 
-def infer_tld_post(tld: ast.Node) -> None:
-    if isinstance(tld, ast.FunctionDeclaration):
-        for v in scope_stack.pop():
-            var_decls[v].pop()
-        assert isinstance(tld.type, ast.Function)
-        if not tld.body.attrs["returns"] and tld.type.ret != ast.Void():
-            errors.add_error(errors.Error(
-                tld.start,
-                tld.end,
-                errors.TypeAnalysisKind.FunctionDoesNotReturn,
-                f"There is a path in this function resulting in no return value.",
-            ))
-
-
 def infer_types_pre(node: ast.Node) -> None:
-    if isinstance(node, ast.Expression):
-        pass
-    elif isinstance(node, ast.Statement):
-        infer_stmt_pre(node)
-    else:  # TLD
-        infer_tld_pre(node)
+    tld_pre(node)
 
 
 def infer_types_post(node: ast.Node) -> None:
     if isinstance(node, ast.Expression):
-        infer_expr(node)
-    elif isinstance(node, ast.Statement):
-        infer_stmt_post(node)
-    else:  # TLD
-        infer_tld_post(node)
-
-
-def analyze_types(tree: ast.Program) -> None:
-    var_decls.clear()
-    scope_stack.clear()
-    traverse(tree, pre_order=[infer_types_pre], post_order=[infer_types_post])
+        expr_post(node)
+    if isinstance(node, ast.Statement):
+        stmt_post(node)
 
 
 # TODO: check compile-time consts (attr value in exprs, use in whiles and ifs for transformation)

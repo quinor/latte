@@ -16,6 +16,7 @@ class ParseKind(Kind):
 
 class TypeAnalysisKind(Kind):
     VariableDoesNotExist = enum.auto()
+    VariableRedeclaration = enum.auto()
     VariableShadow = enum.auto()
     FunctionNotCallable = enum.auto()
     FunctionSameParameter = enum.auto()

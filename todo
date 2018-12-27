@@ -1,4 +1,2 @@
-typecheck
-    plus variable shadows
-    plus variable usage stats (if zero then error)
+typecheck variable usage stats (if zero then error)
 main existence + type (or just add start() function that calls main)

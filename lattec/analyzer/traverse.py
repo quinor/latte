@@ -6,22 +6,33 @@ from .. import ast
 def traverse(
     root: ast.Node,
     pre_order: typing.List[typing.Callable[[ast.Node], None]] = [],
-    post_order: typing.List[typing.Callable[[ast.Node], None]] = [],
-) -> None:
-    def traverse_impl(tree: ast.Node) -> None:
-        for f in pre_order:
-            f(tree)
+    post_order: typing.List[typing.Callable[[ast.Node], typing.Optional[ast.Node]]] = [],
+) -> ast.Node:
+    def traverse_impl(tree: ast.Node) -> ast.Node:
+        for pre_f in pre_order:
+            pre_f(tree)
+
+        ret: typing.Optional[ast.Node] = None  # for the typecheck
 
         d = attr.asdict(tree, recurse=False)
         for k, v in d.items():
             if isinstance(v, list):
-                for e in v:
+                for i, e in enumerate(v):
                     if isinstance(e, ast.Node):
-                        traverse_impl(e)
+                        ret = traverse_impl(e)
+                        if ret is not None:
+                            v[i] = ret
             elif isinstance(v, ast.Node):
-                traverse_impl(v)
+                ret = traverse_impl(v)
+                if ret is not None:
+                    d[k] = ret
 
-        for f in post_order:
-            f(tree)
+        tree = attr.evolve(tree, **d)
 
-    traverse_impl(root)
+        for post_f in post_order:
+            ret = post_f(tree)
+            if ret is not None:
+                tree = ret
+        return tree
+
+    return traverse_impl(root)
