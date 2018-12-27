@@ -2,7 +2,7 @@ import parsy as P
 from . import general as G
 from . import expressions as E
 from . import types as T
-from .. import ast
+from .. import ast, errors, prelude
 
 
 @G.addpos
@@ -49,7 +49,7 @@ plusplus = G.addpos(
     (E.variable << G.symbol("++") << G.symbol(";")).map(lambda v: ast.Assignment(
         var=v,
         expr=ast.Application(
-            function=E.var_from_op(E.binary_operator_map["+"]),
+            function=E.var_from_op(prelude.binary_operator_map["+"]),
             args=[v, ast.IConstant(val=1)]
         )
     ))
@@ -60,7 +60,7 @@ minusminus = G.addpos(
     (E.variable << G.symbol("--") << G.symbol(";")).map(lambda v: ast.Assignment(
         var=v,
         expr=ast.Application(
-            function=E.var_from_op(E.binary_operator_map["-"]),
+            function=E.var_from_op(prelude.binary_operator_map["-"]),
             args=[v, ast.IConstant(val=1)]
         )
     ))
@@ -83,6 +83,17 @@ def if_stmt():
     cond = yield G.parens(E.expression)
     then_branch = yield statement
     else_branch = yield (G.rword("else") >> statement).optional()
+    if (
+        "generated" in then_branch.attrs
+        and isinstance(then_branch.statements[0], ast.If)
+        and then_branch.statements[0].else_branch is not None
+    ):
+        errors.add_error(errors.Error(
+            start=then_branch.start,
+            end=then_branch.end,
+            kind=errors.ParseKind.AmbiguousIf,
+            message="There is an ambiguous if-if-else construct."
+        ))
     return ast.If(cond=cond, then_branch=then_branch, else_branch=else_branch)
 
 
@@ -113,5 +124,7 @@ raw_statement = P.alt(
 def statement():
     st = yield raw_statement
     if not isinstance(st, ast.Block):
-        return ast.Block(statements=[st])
+        bl = ast.Block(statements=[st])
+        bl.attrs["generated"] = True
+        return bl
     return st

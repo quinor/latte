@@ -10,6 +10,7 @@ class Kind(enum.Enum):
 
 class ParseKind(Kind):
     MalformedParenExpr = enum.auto()
+    AmbiguousIf = enum.auto()
     ParserError = enum.auto()
 
 

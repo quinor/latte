@@ -1,32 +1,6 @@
 import parsy as P
 from . import general as G
-from .. import ast, errors
-
-
-unary_operator_map = {
-    "-": ast.Operator(
-        symbol="-", name="__builtin__unary_minus", precedence=3, associativity="right"),
-    "!": ast.Operator(
-        symbol="!", name="__builtin__unary_not", precedence=3, associativity="right"),
-}
-
-
-# operator order such that prefixes are parsed after their supersets (ie. <= and <)
-binary_operator_map = {
-    "%": ast.Operator(symbol="%", name="__builtin__mod", precedence=5, associativity="left"),
-    "*": ast.Operator(symbol="*", name="__builtin__mul", precedence=5, associativity="left"),
-    "/": ast.Operator(symbol="/", name="__builtin__div", precedence=5, associativity="left"),
-    "+": ast.Operator(symbol="+", name="__builtin__add", precedence=6, associativity="left"),
-    "-": ast.Operator(symbol="-", name="__builtin__sub", precedence=6, associativity="left"),
-    "<=": ast.Operator(symbol="<=", name="__builtin__le", precedence=9, associativity="left"),
-    "<":  ast.Operator(symbol="<",  name="__builtin__lt", precedence=9, associativity="left"),
-    ">=": ast.Operator(symbol=">=", name="__builtin__ge", precedence=9, associativity="left"),
-    ">":  ast.Operator(symbol=">",  name="__builtin__gt", precedence=9, associativity="left"),
-    "==": ast.Operator(symbol="==", name="__builtin__eq", precedence=10, associativity="left"),
-    "!=": ast.Operator(symbol="!=", name="__builtin__ne", precedence=10, associativity="left"),
-    "&&": ast.Operator(symbol="&&", name="__builtin__and", precedence=14, associativity="left"),
-    "||": ast.Operator(symbol="||", name="__builtin__or", precedence=15, associativity="left"),
-}
+from .. import ast, errors, prelude
 
 
 variable = G.addpos(G.identifier.map(lambda v: ast.Variable(var=v)))
@@ -47,14 +21,14 @@ string_literal = G.addpos(G.lexeme(
 
 
 unary_operator = G.addpos(P.alt(*map(
-    lambda k: G.symbol(k).result(unary_operator_map[k]),
-    unary_operator_map.keys()
+    lambda k: G.symbol(k).result(prelude.unary_operator_map[k]),
+    prelude.unary_operator_map.keys()
 )).desc("unary operator"))
 
 
 binary_operator = G.addpos(P.alt(*map(
-    lambda k: G.symbol(k).result(binary_operator_map[k]),
-    binary_operator_map.keys()
+    lambda k: G.symbol(k).result(prelude.binary_operator_map[k]),
+    prelude.binary_operator_map.keys()
 )).desc("binary operator"))
 
 

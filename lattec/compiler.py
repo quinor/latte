@@ -7,7 +7,7 @@ def compile(filename, outname=None, silent=False):
     filename = os.path.expanduser(filename)
     # basename = filename[:-4]
 
-    code = open(filename, "r").read()
+    code = open(filename, "r").read().replace("\t", "    ")
     prog = parser.program_parser(code)
     if errors.errors():
         print("ERROR")

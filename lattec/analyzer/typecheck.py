@@ -1,44 +1,11 @@
 from .traverse import traverse
-from .. import ast
+from .. import ast, prelude, errors
 from ..ast import undef_t
-from .. import errors
 import typing
 from collections import defaultdict
 
 
-unary_bool = ast.Function(params=[ast.Bool()], ret=ast.Bool())
-unary_int = ast.Function(params=[ast.Int()], ret=ast.Int())
-binary_bool = ast.Function(params=[ast.Bool(), ast.Bool()], ret=ast.Bool())
-binary_int = ast.Function(params=[ast.Int(), ast.Int()], ret=ast.Int())
-binary_int_bool = ast.Function(params=[ast.Int(), ast.Int()], ret=ast.Bool())
-binary_string_bool = ast.Function(params=[ast.String(), ast.String()], ret=ast.Bool())
-binray_string = ast.Function(params=[ast.String(), ast.String()], ret=ast.String())
-
-prelude_types = [
-    ("printInt", ast.Function(params=[ast.Int()], ret=ast.Void())),
-    ("printString", ast.Function(params=[ast.String()], ret=ast.Void())),
-    ("error", ast.Function(params=[], ret=ast.Void())),
-    ("readInt", ast.Function(params=[], ret=ast.Int())),
-    ("readString", ast.Function(params=[], ret=ast.String())),
-    ("__builtin__unary_minus", unary_int),
-    ("__builtin__unary_not", unary_bool),
-    ("__builtin__mod", binary_int),
-    ("__builtin__mul", binary_int),
-    ("__builtin__div", binary_int),
-    ("__builtin__add", ast.TypeAlternative(alt=[binary_int, binray_string])),
-    ("__builtin__sub", binary_int),
-    ("__builtin__le", binary_int_bool),
-    ("__builtin__lt", binary_int_bool),
-    ("__builtin__ge", binary_int_bool),
-    ("__builtin__gt", binary_int_bool),
-    ("__builtin__eq", ast.TypeAlternative(alt=[binary_int_bool, binary_string_bool, binary_bool])),
-    ("__builtin__ne", ast.TypeAlternative(alt=[binary_int_bool, binary_string_bool, binary_bool])),
-    ("__builtin__and", binary_bool),
-    ("__builtin__or", binary_bool),
-]
-
-
-var_types: typing.Dict[str, typing.List[ast.Declaration]] = defaultdict(list)
+var_decls: typing.Dict[str, typing.List[ast.Declaration]] = defaultdict(list)
 scope_stack: typing.List[typing.List[str]] = []
 
 
@@ -53,7 +20,7 @@ def infer_expr(expr: ast.Expression) -> None:
         expr.attrs["type"] = ast.String()
 
     if isinstance(expr, ast.Variable):
-        if len(var_types[expr.var]) == 0:
+        if len(var_decls[expr.var]) == 0:
             errors.add_error(errors.Error(
                 expr.start,
                 expr.end,
@@ -62,8 +29,8 @@ def infer_expr(expr: ast.Expression) -> None:
             ))
             expr.attrs["type"] = undef_t
         else:
-            expr.attrs["type"] = var_types[expr.var][-1].type
-            expr.attrs["source"] = var_types[expr.var][-1]
+            expr.attrs["type"] = var_decls[expr.var][-1].type
+            expr.attrs["source"] = var_decls[expr.var][-1]
 
     if isinstance(expr, ast.Application):
         fn_t = expr.function.attrs["type"]
@@ -155,7 +122,7 @@ def infer_stmt_post(stmt: ast.Statement) -> None:
                     f"unreachable",
                 ))
         for v in scope_stack.pop():
-            var_types[v].pop()
+            var_decls[v].pop()
 
     if isinstance(stmt, ast.FreeExpression):
         stmt.attrs["returns"] = False
@@ -163,15 +130,15 @@ def infer_stmt_post(stmt: ast.Statement) -> None:
 
     if isinstance(stmt, ast.Declaration):
         stmt.attrs["returns"] = False
-        if len(var_types[stmt.var.var]) > 0:
+        if len(var_decls[stmt.var.var]) > 0:
             errors.add_error(errors.Error(
                 stmt.start,
                 stmt.end,
                 errors.TypeAnalysisKind.VariableShadow,
                 f"This variable declaration shadows previously declared variable. Previous "
-                f"declaration at {var_types[stmt.var.var][-1].start}.",
+                f"declaration at {var_decls[stmt.var.var][-1].start}.",
             ))
-        var_types[stmt.var.var].append(stmt)
+        var_decls[stmt.var.var].append(stmt)
         scope_stack[-1].append(stmt.var.var)
 
     if isinstance(stmt, ast.Assignment):
@@ -190,7 +157,7 @@ def infer_stmt_post(stmt: ast.Statement) -> None:
     if isinstance(stmt, ast.Return):
         stmt.attrs["returns"] = True
         te = stmt.val
-        ret_t = var_types["return"][-1].type
+        ret_t = var_decls["return"][-1].type
         if te is not None:
             if te.attrs["type"] != undef_t and ret_t != te.attrs["type"]:
                 errors.add_error(errors.Error(
@@ -239,7 +206,7 @@ def infer_tld_pre(tld: ast.Node) -> None:
                     param.start,
                     param.end,
                     errors.TypeAnalysisKind.FunctionSameParameter,
-                    f"This function already has got another parameter with name {param.var}.",
+                    f"This function already has got another parameter with name {param.var.var}.",
                 ))
             else:
                 d[param.var.var] = param
@@ -247,19 +214,19 @@ def infer_tld_pre(tld: ast.Node) -> None:
         assert isinstance(tld.type, ast.Function)
         fn_t = tld.type
         scope_stack[-1].append("return")
-        var_types["return"].append(ast.decl_from_var_type(ast.Variable(var="return"), fn_t.ret))
+        var_decls["return"].append(ast.decl_from_var_type(ast.Variable(var="return"), fn_t.ret))
 
     if isinstance(tld, ast.Program):
-        for v, t in prelude_types:
-            var_types[v].append(ast.decl_from_var_type(ast.Variable(var=v), t))
+        for v, t in prelude.prelude_types:
+            var_decls[v].append(ast.decl_from_var_type(ast.Variable(var=v), t))
         for fn in tld.decls:
-            var_types[fn.name].append(ast.decl_from_var_type(ast.Variable(var=fn.name), fn.type))
+            var_decls[fn.name].append(ast.decl_from_var_type(ast.Variable(var=fn.name), fn.type))
 
 
 def infer_tld_post(tld: ast.Node) -> None:
     if isinstance(tld, ast.FunctionDeclaration):
         for v in scope_stack.pop():
-            var_types[v].pop()
+            var_decls[v].pop()
         assert isinstance(tld.type, ast.Function)
         if not tld.body.attrs["returns"] and tld.type.ret != ast.Void():
             errors.add_error(errors.Error(
@@ -289,9 +256,9 @@ def infer_types_post(node: ast.Node) -> None:
 
 
 def analyze_types(tree: ast.Program) -> None:
-    var_types.clear()
+    var_decls.clear()
     scope_stack.clear()
-    traverse(tree, pre_order=infer_types_pre, post_order=infer_types_post)
+    traverse(tree, pre_order=[infer_types_pre], post_order=[infer_types_post])
 
 
 # TODO: check compile-time consts (attr value in exprs, use in whiles and ifs for transformation)

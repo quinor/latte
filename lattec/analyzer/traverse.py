@@ -5,12 +5,12 @@ from .. import ast
 
 def traverse(
     root: ast.Node,
-    pre_order: typing.Callable[[ast.Node], None] = None,
-    post_order: typing.Callable[[ast.Node], None] = None,
+    pre_order: typing.List[typing.Callable[[ast.Node], None]] = [],
+    post_order: typing.List[typing.Callable[[ast.Node], None]] = [],
 ) -> None:
     def traverse_impl(tree: ast.Node) -> None:
-        if pre_order:
-            pre_order(tree)
+        for f in pre_order:
+            f(tree)
 
         d = attr.asdict(tree, recurse=False)
         for k, v in d.items():
@@ -21,7 +21,7 @@ def traverse(
             elif isinstance(v, ast.Node):
                 traverse_impl(v)
 
-        if post_order:
-            post_order(tree)
+        for f in post_order:
+            f(tree)
 
     traverse_impl(root)
