@@ -143,7 +143,7 @@ def stmt_post(stmt: ast.Statement) -> None:
                     stmt.end,
                     errors.TypeAnalysisKind.ReturnTypeMismatch,
                     f"The type of the function return {ret_t} does not match with the type of the "
-                    f"expressiom: {te.attrs['type']}.",
+                    f"expression: {te.attrs['type']}.",
                 ))
         else:
             if ret_t != ast.Void():
@@ -183,7 +183,36 @@ def tld_pre(tld: ast.Node) -> None:
         for v, t in prelude.prelude_types:
             var_decls[v].append(ast.decl_from_var_type(ast.Variable(var=v), t))
         for fn in tld.decls:
-            var_decls[fn.name].append(ast.decl_from_var_type(ast.Variable(var=fn.name), fn.type))
+            if len(var_decls[fn.name]) > 0:
+                errors.add_error(errors.Error(
+                    fn.start,
+                    fn.end,
+                    errors.TypeAnalysisKind.MultipleFunctionDefinitions,
+                    f"Function with this name has been already declared. Previous definition at "
+                    f"{var_decls[fn.name][-1].start}.",
+                ))
+            var_decls[fn.name].append(ast.decl_from_var_type(
+                ast.Variable(start=fn.start, end=fn.end, var=fn.name), fn.type))
+
+
+def tld_post(tld: ast.Node) -> None:
+    if isinstance(tld, ast.Program):
+        if "main" not in var_decls:
+            errors.add_error(errors.Error(
+                None,
+                None,
+                errors.TypeAnalysisKind.NoMain,
+                f"Main function does not exist.",
+            ))
+        elif var_decls["main"][-1].type != ast.Function(params=[], ret=ast.Int()):
+            main = var_decls["main"][-1]
+            main_expected_t = ast.Function(params=[], ret=ast.Int())
+            errors.add_error(errors.Error(
+                main.start,
+                main.end,
+                errors.TypeAnalysisKind.NoMain,
+                f"Main function type mismatch. Should be {main_expected_t}, is {main.type}.",
+            ))
 
 
 def infer_types_pre(node: ast.Node) -> None:
@@ -195,6 +224,7 @@ def infer_types_post(node: ast.Node) -> None:
         expr_post(node)
     if isinstance(node, ast.Statement):
         stmt_post(node)
+    tld_post(node)
 
 
 # TODO: check compile-time consts (attr value in exprs, use in whiles and ifs for transformation)
