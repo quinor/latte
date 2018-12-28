@@ -10,7 +10,9 @@ def traverse(
 ) -> ast.Node:
     def traverse_impl(tree: ast.Node) -> ast.Node:
         for pre_f in pre_order:
-            pre_f(tree)
+            ret = pre_f(tree)
+            if ret is not None:
+                tree = ret
 
         ret: typing.Optional[ast.Node] = None  # for the typecheck
 
