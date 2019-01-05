@@ -1,5 +1,5 @@
-from . import scopes, typecheck, traverse, returns, constexprs
-from .. import ast
+from . import scopes, typecheck, returns, constexprs
+from .. import ast, traverse
 
 
 def type_analysis(tree: ast.Program) -> ast.Program:

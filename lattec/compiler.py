@@ -1,5 +1,5 @@
 import os
-from . import parser, analyzer, errors, config
+from . import parser, analyzer, quadruplets, errors, config
 
 
 def compile() -> None:
@@ -14,6 +14,7 @@ def compile() -> None:
         parser.program_parser,
         analyzer.type_analysis,
         analyzer.static_analysis,
+        quadruplets.quadruplet_generation,
     ]
     prog = code
     for no, step in enumerate(steps):

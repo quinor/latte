@@ -225,8 +225,3 @@ def infer_types_post(node: ast.Node) -> None:
     if isinstance(node, ast.Statement):
         stmt_post(node)
     tld_post(node)
-
-
-# TODO: check compile-time consts (attr value in exprs, use in whiles and ifs for transformation)
-# ^^^^^ move to separate file
-# TODO: move return completeness check to a separate file
