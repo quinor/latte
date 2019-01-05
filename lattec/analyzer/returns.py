@@ -7,12 +7,12 @@ def check_returns_pre(node: ast.Node) -> None:
 
 def check_returns_post(node: ast.Node) -> None:
     if isinstance(node, ast.Statement):
-        node.attrs["returns"] = False
+        node.attrs.returns = False
 
     if isinstance(node, ast.Block):
-        node.attrs["returns"] = any(e.attrs["returns"] for e in node.statements)
+        node.attrs.returns = any(e.attrs.returns for e in node.statements)
         for i, e in enumerate(node.statements):
-            if i != len(node.statements)-1 and e.attrs["returns"]:
+            if i != len(node.statements)-1 and e.attrs.returns:
                 next_st = node.statements[i+1]
                 errors.add_error(errors.Error(
                     next_st.start,
@@ -24,18 +24,18 @@ def check_returns_post(node: ast.Node) -> None:
                 break
 
     if isinstance(node, ast.Return):
-        node.attrs["returns"] = True
+        node.attrs.returns = True
 
     if isinstance(node, ast.If):
-        node.attrs["returns"] = (
-            node.then_branch.attrs["returns"]
+        node.attrs.returns = (
+            node.then_branch.attrs.returns
             and node.else_branch is not None
-            and node.else_branch.attrs["returns"]
+            and node.else_branch.attrs.returns
         )
 
     if isinstance(node, ast.FunctionDeclaration):
         assert isinstance(node.type, ast.Function)
-        if not node.body.attrs["returns"] and node.type.ret != ast.Void():
+        if not node.body.attrs.returns and node.type.ret != ast.Void():
             errors.add_error(errors.Error(
                 node.start,
                 node.end,

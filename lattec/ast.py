@@ -6,6 +6,15 @@ from . import colors
 # GENERAL
 
 
+@attr.s(auto_attribs=True)
+class AttrObject:
+    type:       typing.Any = None
+    generated:  typing.Any = None
+    returns:    typing.Any = None
+    value:      typing.Any = None
+    quad_gen:   typing.Any = None
+
+
 @attr.s(frozen=True, auto_attribs=True, kw_only=True, repr=False)
 class Position:
     line: int
@@ -19,7 +28,7 @@ class Position:
 class Node:
     start: typing.Optional[Position] = attr.ib(cmp=False, default=None)
     end: typing.Optional[Position] = attr.ib(cmp=False, default=None)
-    attrs: dict = attr.ib(factory=dict)
+    attrs: AttrObject = attr.ib(factory=AttrObject)
 
 
 @attr.s(frozen=True, auto_attribs=True, kw_only=True)

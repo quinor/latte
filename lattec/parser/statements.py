@@ -84,7 +84,7 @@ def if_stmt():
     then_branch = yield statement
     else_branch = yield (G.rword("else") >> statement).optional()
     if (
-        "generated" in then_branch.attrs
+        then_branch.attrs.generated is not None
         and isinstance(then_branch.statements[0], ast.If)
         and then_branch.statements[0].else_branch is not None
     ):
@@ -125,6 +125,6 @@ def statement():
     st = yield raw_statement
     if not isinstance(st, ast.Block):
         bl = ast.Block(statements=[st])
-        bl.attrs["generated"] = True
+        bl.attrs.generated = True
         return bl
     return st
