@@ -7,7 +7,7 @@ binary_bool = ast.Function(params=[ast.Bool(), ast.Bool()], ret=ast.Bool())
 binary_int = ast.Function(params=[ast.Int(), ast.Int()], ret=ast.Int())
 binary_int_bool = ast.Function(params=[ast.Int(), ast.Int()], ret=ast.Bool())
 binary_string_bool = ast.Function(params=[ast.String(), ast.String()], ret=ast.Bool())
-binray_string = ast.Function(params=[ast.String(), ast.String()], ret=ast.String())
+binary_string = ast.Function(params=[ast.String(), ast.String()], ret=ast.String())
 
 prelude_types = [
     ("printInt", ast.Function(params=[ast.Int()], ret=ast.Void())),
@@ -15,22 +15,34 @@ prelude_types = [
     ("error", ast.Function(params=[], ret=ast.Void())),
     ("readInt", ast.Function(params=[], ret=ast.Int())),
     ("readString", ast.Function(params=[], ret=ast.String())),
+    ("__builtin__destroy_string", ast.Function(params=[ast.String()], ret=ast.Void())),
     ("__builtin__unary_minus", unary_int),
     ("__builtin__unary_not", unary_bool),
     ("__builtin__mod", binary_int),
     ("__builtin__mul", binary_int),
     ("__builtin__div", binary_int),
-    ("__builtin__add", ast.TypeAlternative(alt=[binary_int, binray_string])),
+    ("__builtin__add", ast.TypeAlternative(alt=[binary_int, binary_string])),
+    ("__builtin__add_int", binary_int),
+    ("__builtin__add_string", binary_string),
     ("__builtin__sub", binary_int),
     ("__builtin__le", binary_int_bool),
     ("__builtin__lt", binary_int_bool),
     ("__builtin__ge", binary_int_bool),
     ("__builtin__gt", binary_int_bool),
     ("__builtin__eq", ast.TypeAlternative(alt=[binary_int_bool, binary_string_bool, binary_bool])),
+    ("__builtin__eq_int", binary_int_bool),
+    ("__builtin__eq_string", binary_string_bool),
+    ("__builtin__eq_bool", binary_bool),
     ("__builtin__ne", ast.TypeAlternative(alt=[binary_int_bool, binary_string_bool, binary_bool])),
+    ("__builtin__ne_int", binary_int_bool),
+    ("__builtin__ne_string", binary_string_bool),
+    ("__builtin__ne_bool", binary_bool),
     ("__builtin__and", binary_bool),
     ("__builtin__or", binary_bool),
 ]
+
+
+# for constexpr folding
 
 const_fn_impls = {
     "__builtin__unary_minus": lambda x: -x,
@@ -38,18 +50,24 @@ const_fn_impls = {
     "__builtin__mod": lambda x, y: x % y,
     "__builtin__mul": lambda x, y: x * y,
     "__builtin__div": lambda x, y: x // y,
-    "__builtin__add": lambda x, y: x + y,
+    "__builtin__add_int": lambda x, y: x + y,
+    "__builtin__add_string": lambda x, y: x + y,
     "__builtin__sub": lambda x, y: x - y,
     "__builtin__le": lambda x, y: x <= y,
     "__builtin__lt": lambda x, y: x < y,
     "__builtin__ge": lambda x, y: x >= y,
     "__builtin__gt": lambda x, y: x > y,
-    "__builtin__eq": lambda x, y: x == y,
-    "__builtin__ne": lambda x, y: x != y,
+    "__builtin__eq_int": lambda x, y: x == y,
+    "__builtin__ne_int": lambda x, y: x != y,
+    "__builtin__eq_string": lambda x, y: x == y,
+    "__builtin__ne_string": lambda x, y: x != y,
+    "__builtin__eq_bool": lambda x, y: x == y,
+    "__builtin__ne_bool": lambda x, y: x != y,
     "__builtin__and": lambda x, y: x and y,
     "__builtin__or": lambda x, y: x or y,
 }
 
+# for parser
 
 unary_operator_map = {
     "-": ast.Operator(

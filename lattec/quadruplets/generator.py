@@ -1,79 +1,137 @@
 from .. import ast
 from .scopes import var_decls
-from . import quads
-
-
-def nothing():
-    pass
+from .. import quads as Q
 
 
 def gen_quads_post(node: ast.Node) -> None:
     # expressions
     if isinstance(node, ast.IConstant):
-        def impl():
-            return str(node.val)
-        node.attrs.quad_gen = impl
+        def impl_e() -> Q.Val:
+            assert isinstance(node, ast.IConstant)
+            return Q.Constant(Q.I32(), node.val)
+        node.attrs.quad_gen = impl_e
 
     if isinstance(node, ast.BConstant):
-        def impl():
-            return str(int(node.val))
-        node.attrs.quad_gen = impl
+        def impl_e() -> Q.Val:
+            assert isinstance(node, ast.BConstant)
+            return Q.Constant(Q.I1(), node.val)
+        node.attrs.quad_gen = impl_e
 
     if isinstance(node, ast.SConstant):
-        def impl():
-            return f"\"{node.val}\""
-        node.attrs.quad_gen = impl
+        def impl_e() -> Q.Val:
+            assert isinstance(node, ast.SConstant)
+            return Q.SConstant(Q.String(), node.val)
+        node.attrs.quad_gen = impl_e
 
     if isinstance(node, ast.Variable):
         var = var_decls[node.var][-1]
 
-        def impl():
-            return str(var)
-        node.attrs.quad_gen = impl
+        def impl_e() -> Q.Val:
+            return var
+        node.attrs.quad_gen = impl_e
 
     if isinstance(node, ast.Application):
-        # fn = node.function.var
-        def impl():
-            f_val = node.function.attrs.quad_gen()
-            args_val = [e.attrs.quad_gen() for e in node.args]
-            v = quads.new_var()
-            quads.add_quad(f"    {v} = {f_val}({', '.join(args_val)})")
-            return v
-        node.attrs.quad_gen = impl
+        def impl_e() -> Q.Val:
+            assert isinstance(node, ast.Application)
+            f = node.function.attrs.quad_gen()
+            if isinstance(f, Q.GlobalVar) and f.name in ["__builtin__and", "__builtin__or"]:
+                fst = node.args[0].attrs.quad_gen
+                snd = node.args[1].attrs.quad_gen
+                half = Q.new_label()
+                pos = Q.new_label()
+                neg = Q.new_label()
+                end = Q.new_label()
+                fv = fst()
+
+                if f.name == "__builtin__and":
+                    Q.add_quad(Q.CondBranch(fv, half, neg))
+                else:  # f.name == "__builtin__or"
+                    Q.add_quad(Q.CondBranch(fv, pos, half))
+                Q.add_quad(half)
+                sv = snd()
+                Q.add_quad(Q.CondBranch(sv, pos, neg))
+
+                ft = node.function.attrs.type
+                assert isinstance(ft, ast.Function)
+                v = Q.new_var(Q.from_ast_type(ft.ret))
+
+                Q.add_quad(pos)
+                Q.add_quad(Q.Call(v, Q.identity(Q.I1()), [Q.Constant(Q.I1(), 1)]))
+                Q.add_quad(Q.Branch(end))
+
+                Q.add_quad(neg)
+                Q.add_quad(Q.Call(v, Q.identity(Q.I1()), [Q.Constant(Q.I1(), 0)]))
+                Q.add_quad(Q.Branch(end))
+
+                Q.add_quad(end)
+
+                return v
+            else:
+                args = [e.attrs.quad_gen() for e in node.args]
+                ft = node.function.attrs.type
+                assert isinstance(ft, ast.Function)
+                v = Q.new_var(Q.from_ast_type(ft.ret))
+                Q.add_quad(Q.Call(v, f, args))
+                if isinstance(v.type, Q.String):
+                    Q.add_defer(Q.Call(
+                        Q.new_var(Q.Void()),
+                        Q.GlobalVar(
+                            Q.FunctionPtr(Q.Void(), [Q.String()]),
+                            "__builtin__destroy_string"
+                        ),
+                        [v]
+                    ))
+                return v
+        node.attrs.quad_gen = impl_e
 
     # statements
     if isinstance(node, ast.Block):
-        def impl():
+        def impl_s() -> None:
+            assert isinstance(node, ast.Block)
+            Q.open_defer_scope()
             for e in node.statements:
                 e.attrs.quad_gen()
-            # TODO: string destructors
-        node.attrs.quad_gen = impl
+            for q in Q.close_defer_scope():
+                Q.add_quad(q)
+        node.attrs.quad_gen = impl_s
 
     if isinstance(node, ast.FreeExpression):
         node.attrs.quad_gen = node.expr.attrs.quad_gen
 
     if isinstance(node, ast.Declaration):
         var = var_decls[node.var.var][-1]
-        node.attrs.quad_gen = nothing
+
+        def impl_s() -> None:
+            assert isinstance(node, ast.Declaration)
+            assert isinstance(var, Q.Var)
+            Q.add_quad(Q.Declaration(var))
+        node.attrs.quad_gen = impl_s
 
     if isinstance(node, ast.Assignment):
         var = var_decls[node.var.var][-1]
 
-        def impl():
+        def impl_s() -> None:
+            assert isinstance(node, ast.Assignment)
             val = node.expr.attrs.quad_gen()
-            quads.add_quad(f"    {var} = {val}")
-        node.attrs.quad_gen = impl
+            assert isinstance(var, Q.Var)
+            Q.add_quad(Q.Call(var, Q.identity(var.type), [val]))
+        node.attrs.quad_gen = impl_s
 
     if isinstance(node, ast.Return):
-        def impl():
+        def impl_s() -> None:
+            # defered calls when return happens
+            for q in sum(Q.defer_stack, []):
+                Q.add_quad(q)
+            assert isinstance(node, ast.Return)
             if node.val is not None:
-                quads.add_quad(f"    return {node.val.attrs.quad_gen()}")
+                Q.add_quad(Q.Return(node.val.attrs.quad_gen()))
             else:
-                quads.add_quad(f"    return")
-        node.attrs.quad_gen = impl
+                Q.add_quad(Q.Return(None))
+        node.attrs.quad_gen = impl_s
 
     if isinstance(node, ast.If):
-        def impl():
+        def impl_s() -> None:
+            assert isinstance(node, ast.If)
             cond = node.cond.attrs.quad_gen
             then_branch = node.then_branch.attrs.quad_gen
             if node.else_branch is not None:
@@ -81,53 +139,66 @@ def gen_quads_post(node: ast.Node) -> None:
             else:
                 else_branch = None
 
-            then_lbl = quads.new_label()
-            end_lbl = quads.new_label()
-            else_lbl = quads.new_label() if else_branch else end_lbl
+            then_lbl = Q.new_label()
+            if else_branch:
+                else_lbl = Q.new_label()
+            end_lbl = Q.new_label()
+            if not else_branch:
+                else_lbl = end_lbl
 
             cv = cond()
-            quads.add_quad(f"    br {cv} {then_lbl} {else_lbl}")
-            quads.add_quad(f"{then_lbl}:")
+            Q.add_quad(Q.CondBranch(cv, then_lbl, else_lbl))
+            Q.add_quad(then_lbl)
             then_branch()
-            quads.add_quad(f"    br {end_lbl}")
+            Q.add_quad(Q.Branch(end_lbl))
             if else_branch:
-                quads.add_quad(f"{else_lbl}:")
+                Q.add_quad(else_lbl)
                 else_branch()
-                quads.add_quad(f"    br {end_lbl}")
-            quads.add_quad(f"{end_lbl}:")
+                Q.add_quad(Q.Branch(end_lbl))
+            Q.add_quad(end_lbl)
 
-        node.attrs.quad_gen = impl
+        node.attrs.quad_gen = impl_s
 
     if isinstance(node, ast.While):
-        def impl():
+        def impl_s() -> None:
+            assert isinstance(node, ast.While)
             cond = node.cond.attrs.quad_gen
             body = node.body.attrs.quad_gen
-            body_lbl = quads.new_label()
-            cond_lbl = quads.new_label()
-            end_lbl = quads.new_label()
-            quads.add_quad(f"    br {cond_lbl}")
-            quads.add_quad(f"{body_lbl}:")
+            body_lbl = Q.new_label()
+            cond_lbl = Q.new_label()
+            end_lbl = Q.new_label()
+            Q.add_quad(Q.Branch(cond_lbl))
+            Q.add_quad(body_lbl)
             body()
-            quads.add_quad(f"    br {cond_lbl}")
-            quads.add_quad(f"{cond_lbl}:")
+            Q.add_quad(Q.Branch(cond_lbl))
+            Q.add_quad(cond_lbl)
             cv = cond()
-            quads.add_quad(f"    br {cv} {body_lbl} {end_lbl}")
-            quads.add_quad(f"{end_lbl}:")
+            Q.add_quad(Q.CondBranch(cv, body_lbl, end_lbl))
+            Q.add_quad(end_lbl)
 
-        node.attrs.quad_gen = impl
+        node.attrs.quad_gen = impl_s
 
     # TLDs
     if isinstance(node, ast.FunctionDeclaration):
         params = [var_decls[e.var.var][-1] for e in node.params]
 
-        def impl():
-            quads.add_quad(f"def {node.name} ({', '.join(params)})" " {")
+        def impl_t() -> Q.Function:
+            assert isinstance(node, ast.FunctionDeclaration)
             node.body.attrs.quad_gen()
-            quads.add_quad("}\n")
+            body = Q.gather()
+            assert all(isinstance(p, Q.Var) for p in params)
+            assert isinstance(node.type, ast.Function)
+            return Q.Function(  # type: ignore
+                Q.from_ast_type(node.type.ret),
+                node.name,
+                params,
+                body
+            )
 
-        node.attrs.quad_gen = impl
-        # TEMP
-        node.attrs.quad_gen()
-        for l in quads.quads:
-            print(l)
-        quads.quads.clear()
+        node.attrs.quad_gen = impl_t
+
+    if isinstance(node, ast.Program):
+        def impl_p():
+            assert isinstance(node, ast.Program)
+            return [e.attrs.quad_gen() for e in node.decls]
+        node.attrs.quad_gen = impl_p

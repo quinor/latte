@@ -1,9 +1,9 @@
-from .. import ast, traverse
-from . import generator, scopes, quads
+import typing
+from .. import ast, traverse, quads
+from . import generator, scopes
 
 
-def quadruplet_generation(tree: ast.Program) -> None:
-    quads.clear()
+def quadruplet_generation(tree: ast.Program) -> typing.List[quads.Function]:
     traverse.traverse(
         tree,
         pre_order=[
@@ -14,6 +14,4 @@ def quadruplet_generation(tree: ast.Program) -> None:
             scopes.infer_scopes_post,
         ]
     )
-    ret = None
-    # assert isinstance(ret, ast.Program)
-    return ret
+    return tree.attrs.quad_gen()  # type: ignore

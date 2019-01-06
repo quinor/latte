@@ -1,3 +1,5 @@
+import typing
+import attr
 from .. import ast, prelude, errors
 from ..ast import undef_t
 from .scopes import var_decls
@@ -5,7 +7,7 @@ from . import scopes
 from .. import config
 
 
-def expr_post(expr: ast.Expression) -> None:
+def expr_post(expr: ast.Expression) -> typing.Optional[ast.Expression]:
     if isinstance(expr, ast.IConstant):
         expr.attrs.type = ast.Int()
 
@@ -61,7 +63,7 @@ def expr_post(expr: ast.Expression) -> None:
                         f"agree with expected type {expected}.",
                     ))
 
-        # special workaround for polymorphic operators, TODO proper implementation?
+        # special workaround for polymorphic operators
         elif isinstance(fn_t, ast.TypeAlternative):
             expr.attrs.type = ast.undef_t
             for subtype in fn_t.alt:
@@ -75,7 +77,20 @@ def expr_post(expr: ast.Expression) -> None:
                     continue
                 expr.attrs.type = subtype.ret
                 expr.function.attrs.type = subtype
-                break
+                poly_t = subtype.params[0]
+                if isinstance(poly_t, ast.Int):
+                    t_name = "int"
+                if isinstance(poly_t, ast.String):
+                    t_name = "string"
+                if isinstance(poly_t, ast.Bool):
+                    t_name = "bool"
+                return attr.evolve(
+                    expr,
+                    function=attr.evolve(
+                        expr.function,
+                        var=expr.function.var+"_"+t_name
+                    )
+                )
             if expr.attrs.type == ast.undef_t:
                     errors.add_error(errors.Error(
                         expr.start,
@@ -96,9 +111,10 @@ def expr_post(expr: ast.Expression) -> None:
                 f"This object of type {fn_t} is not callable.",
             ))
             expr.attrs.type = undef_t
+    return None
 
 
-def stmt_post(stmt: ast.Statement) -> None:
+def stmt_post(stmt: ast.Statement) -> typing.Optional[ast.Statement]:
 
     if isinstance(stmt, ast.Declaration):
         if len(var_decls[stmt.var.var]) > 0:
@@ -163,6 +179,7 @@ def stmt_post(stmt: ast.Statement) -> None:
                     errors.TypeAnalysisKind.ConditionTypeMismatch,
                     f"This conditional value should be of type {ast.Bool()}, not {cond_t}.",
                 ))
+    return None
 
 
 def tld_pre(tld: ast.Node) -> None:
@@ -195,7 +212,7 @@ def tld_pre(tld: ast.Node) -> None:
                 ast.Variable(start=fn.start, end=fn.end, var=fn.name), fn.type))
 
 
-def tld_post(tld: ast.Node) -> None:
+def tld_post(tld: ast.Node) -> typing.Optional[ast.Node]:
     if isinstance(tld, ast.Program):
         if "main" not in var_decls:
             errors.add_error(errors.Error(
@@ -213,15 +230,16 @@ def tld_post(tld: ast.Node) -> None:
                 errors.TypeAnalysisKind.NoMain,
                 f"Main function type mismatch. Should be {main_expected_t}, is {main.type}.",
             ))
+    return None
 
 
 def infer_types_pre(node: ast.Node) -> None:
     tld_pre(node)
 
 
-def infer_types_post(node: ast.Node) -> None:
+def infer_types_post(node: ast.Node) -> typing.Optional[ast.Node]:
     if isinstance(node, ast.Expression):
-        expr_post(node)
+        return expr_post(node)
     if isinstance(node, ast.Statement):
-        stmt_post(node)
-    tld_post(node)
+        return stmt_post(node)
+    return tld_post(node)

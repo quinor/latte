@@ -1,5 +1,5 @@
 import os
-from . import parser, analyzer, quadruplets, errors, config
+from . import parser, analyzer, quadruplets, errors, config, llvm_backend
 
 
 def compile() -> None:
@@ -15,6 +15,7 @@ def compile() -> None:
         analyzer.type_analysis,
         analyzer.static_analysis,
         quadruplets.quadruplet_generation,
+        llvm_backend.generate_llvm
     ]
     prog = code
     for no, step in enumerate(steps):
@@ -24,5 +25,4 @@ def compile() -> None:
             if not config.cfg["silent"]:
                 errors.print_errors(code)
             exit(-1-no)
-    print("OK")
     exit(0)
