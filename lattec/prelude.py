@@ -10,6 +10,7 @@ binary_string_bool = ast.Function(params=[ast.String(), ast.String()], ret=ast.B
 binary_string = ast.Function(params=[ast.String(), ast.String()], ret=ast.String())
 
 prelude_types = [
+    ("error", ast.Function(params=[], ret=ast.Void())),
     ("printInt", ast.Function(params=[ast.Int()], ret=ast.Void())),
     ("printString", ast.Function(params=[ast.String()], ret=ast.Void())),
     ("error", ast.Function(params=[], ret=ast.Void())),

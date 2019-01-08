@@ -2,6 +2,7 @@ test.sh
 *.sublime*
 activate
 latte_tests
+mrjp-tests
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

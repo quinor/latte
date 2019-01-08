@@ -62,5 +62,11 @@ struct S* readString()
     return ret;
 }
 
+void error()
+{
+    printf("runtime error\n");
+    exit(-1);
+}
+
 
 struct S foo = {"alamakota", 1000000000};

@@ -4,7 +4,7 @@ LLVM_RUNTIME = """
 @d   = internal constant [3 x i8] c"%d\\00"
 @lf  = internal constant [4 x i8] c"%lf\\00"
 @rs  = internal constant [4 x i8] c"%s\\0A\\00"
-;@rs  = internal constant [7 x i8] c"%[^\\0A]\\0A\\00"
+@es  = internal constant [14 x i8] c"runtime error\\00"
 
 declare i32 @printf(i8*, ...)
 declare i32 @scanf(i8*, ...)
@@ -14,6 +14,7 @@ declare void @free(i8*)
 declare i32 @strlen(i8*)
 declare i8* @strcpy(i8*, i8*)
 declare i32 @strcmp(i8*, i8*)
+declare void @exit(i32)
 
 %struct.S = type { i8*, i32 }
 
@@ -119,6 +120,13 @@ define dso_local noalias %struct.S* @readString() local_unnamed_addr {
   %7 = bitcast i8* %3 to i8**
   store i8* %1, i8** %7
   ret %struct.S* %4
+}
+
+
+define dso_local void @error() local_unnamed_addr {
+  %1 = tail call i32 @puts(i8* getelementptr inbounds ([14 x i8], [14 x i8]* @es, i32 0, i32 0))
+  tail call void @exit(i32 -1)
+  unreachable
 }
 
 

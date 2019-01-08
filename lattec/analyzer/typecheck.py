@@ -153,6 +153,13 @@ def stmt_post(stmt: ast.Statement) -> typing.Optional[ast.Statement]:
         te = stmt.val
         ret_t = var_decls["return"][-1].type
         if te is not None:
+            if te.attrs.type != undef_t and isinstance(te.attrs.type, ast.Void):
+                errors.add_error(errors.Error(
+                    stmt.start,
+                    stmt.end,
+                    errors.TypeAnalysisKind.ReturnTypeMismatch,
+                    f"Return of type {te.attrs.type} with value is not permitted",
+                ))
             if te.attrs.type != undef_t and ret_t != te.attrs.type:
                 errors.add_error(errors.Error(
                     stmt.start,
@@ -186,6 +193,14 @@ def tld_pre(tld: ast.Node) -> None:
     if isinstance(tld, ast.FunctionDeclaration):
         d: dict = {}
         for param in tld.params:
+            if isinstance(param.type, ast.Void):
+                errors.add_error(errors.Error(
+                    param.start,
+                    param.end,
+                    errors.TypeAnalysisKind.FunctionVoidParameter,
+                    f"This function parameter is of forbidden type {ast.Void}.",
+                ))
+
             if param.var.var in d:
                 errors.add_error(errors.Error(
                     param.start,

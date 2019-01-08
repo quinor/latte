@@ -23,6 +23,7 @@ class TypeAnalysisKind(Kind):
     NoMain = enum.auto()
     FunctionNotCallable = enum.auto()
     FunctionSameParameter = enum.auto()
+    FunctionVoidParameter = enum.auto()
     FunctionDoesNotReturn = enum.auto()
     IncorrectArgumentCount = enum.auto()
     ArgumentTypeMismatch = enum.auto()
