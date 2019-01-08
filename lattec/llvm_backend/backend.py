@@ -104,4 +104,5 @@ def generate_function(f: Q.Function) -> typing.List[str]:
 def generate_llvm(funcs: Q.Program) -> str:
     code = resources.LLVM_RUNTIME
     code += "\n".join(l for f in funcs for l in generate_function(f))
+    code += "\n"+"\n".join(Q.get_string_consts())
     return code

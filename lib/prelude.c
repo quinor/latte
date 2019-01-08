@@ -52,4 +52,15 @@ void printString(struct S* a)
 }
 
 
+struct S* readString()
+{
+    char* caption = malloc(sizeof(char)*1000);
+    scanf("%[^\n]\n", caption);
+    struct S* ret = malloc(sizeof(struct S));
+    ret->cnt = 1;
+    ret->text = caption;
+    return ret;
+}
+
+
 struct S foo = {"alamakota", 1000000000};

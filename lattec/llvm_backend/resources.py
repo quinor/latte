@@ -3,6 +3,8 @@ LLVM_RUNTIME = """
 @fnl = internal constant [6 x i8] c"%.1f\\0A\\00"
 @d   = internal constant [3 x i8] c"%d\\00"
 @lf  = internal constant [4 x i8] c"%lf\\00"
+@rs  = internal constant [4 x i8] c"%s\\0A\\00"
+;@rs  = internal constant [7 x i8] c"%[^\\0A]\\0A\\00"
 
 declare i32 @printf(i8*, ...)
 declare i32 @scanf(i8*, ...)
@@ -106,13 +108,18 @@ define dso_local void @printString(%struct.S* nocapture readonly) local_unnamed_
   ret void
 }
 
+define dso_local noalias %struct.S* @readString() local_unnamed_addr {
+  %1 = tail call noalias i8* @malloc(i32 1000)
+  %2 = tail call i32 (i8*, ...) @scanf(i8* getelementptr inbounds ([4 x i8], [4 x i8]* @rs, i32 0, i32 0), i8* %1)
+  %3 = tail call noalias i8* @malloc(i32 8)
+  %4 = bitcast i8* %3 to %struct.S*
+  %5 = getelementptr inbounds i8, i8* %3, i32 4
+  %6 = bitcast i8* %5 to i32*
+  store i32 1, i32* %6
+  %7 = bitcast i8* %3 to i8**
+  store i8* %1, i8** %7
+  ret %struct.S* %4
+}
+
 
 """
-
-
-def string_constant(name: str, value: str) -> str:
-    vl = len(value)+1
-    return (
-        f"@_{name} = internal constant [{vl} x i8] c\"{value}\\00\"\n"
-        f"@{name} = global %struct.S {'{'} i8* getelementptr inbounds ([{vl} x i8], [{vl} x i8]* @.str, i32 0, i32 0), i32 1000000000 {'}'}\n"
-    )

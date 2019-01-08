@@ -96,7 +96,8 @@ class SConstant(Val):
     value: str
 
     def __repr__(self):
-        return f"{self.value}"
+        r = new_str_const(self.value.replace('"', '\\"'))
+        return f"{r}"
 
 
 @attr.s(frozen=True, auto_attribs=True, repr=False)
@@ -212,11 +213,13 @@ def identity(t: RegType) -> GlobalVar:
 
 var_cnt: int = 0
 label_cnt: int = 0
+string_cnt: int = 0
 is_returned: bool = False
 
 
 quad_list: typing.List[Quad] = []
 defer_stack: typing.List[typing.List[Quad]] = []
+string_const_list: typing.List[str] = []
 
 
 def gather() -> typing.List[Quad]:
@@ -225,18 +228,30 @@ def gather() -> typing.List[Quad]:
     return ret
 
 
-def reset_counters() -> None:
-    global var_cnt
-    global label_cnt
-    var_cnt = 0
-    label_cnt = 0
-
-
 def new_var(t: RegType) -> Var:
     global var_cnt
     name = f"v{var_cnt}"
     var_cnt += 1
     return Var(t, name)
+
+
+def new_str_const(value: str) -> GlobalVar:
+    global string_cnt
+    name = f"s{string_cnt}"
+    string_cnt += 1
+
+    vl = len(value)+1
+    string_const_list.append(
+        f"@_{name} = internal constant [{vl} x i8] c\"{value}\\00\"\n"
+        f"@{name} = global %struct.S {'{'} i8* getelementptr inbounds ([{vl} x i8], [{vl} x i8]* @_{name}, i32 0, i32 0), i32 1000000000 {'}'}\n"  # noqa
+    )
+    return GlobalVar(String(), name)
+
+
+def get_string_consts() -> typing.List[str]:
+    ret = string_const_list[:]
+    string_const_list.clear()
+    return ret
 
 
 def new_label() -> Label:

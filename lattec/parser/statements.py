@@ -39,21 +39,23 @@ def _constant(v: ast.Variable, t: ast.Type) -> ast.Expression:
 @P.generate
 def declaration():
     type = yield T.type
-    decls = yield (
+    raw_decls = yield (
         P.seq(E.variable, (G.symbol("=") >> E.expression).optional())
-        .combine(
-            lambda v, e:
-                [ast.decl_from_var_type(v, type)] +
-                (
-                    [ast.Assignment(start=v.start, end=e.end, var=v, expr=e)]
-                    if e else
-                    [ast.Assignment(start=v.start, end=v.end, var=v, expr=_constant(v, type))]
-                )
-        )
         .sep_by(G.symbol(","), min=1)
     )
+    decls = []
+    vnames = [v.var for v, e in raw_decls]
+    for v, e in raw_decls:
+        decls.append(ast.decl_from_var_type(v, type))
+    for v, e in raw_decls:
+        if e:
+            decls.append(ast.Assignment(start=v.start, end=e.end, var=v, expr=e))
+        else:
+            decls.append(ast.Assignment(start=v.start, end=v.end, var=v, expr=_constant(v, type)))
+        decls[-1].expr.attrs.ignore_names = vnames
     yield G.symbol(";")
-    return ast.InlinedBlock(statements=sum(decls, []))
+    ret = ast.InlinedBlock(statements=decls)
+    return ret
 
 
 assignment = G.addpos(

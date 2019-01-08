@@ -73,15 +73,16 @@ def gen_quads_post(node: ast.Node) -> None:
                 assert isinstance(ft, ast.Function)
                 v = Q.new_var(Q.from_ast_type(ft.ret))
                 Q.add_quad(Q.Call(v, f, args))
-                if isinstance(v.type, Q.String):
-                    Q.add_defer(Q.Call(
-                        Q.new_var(Q.Void()),
-                        Q.GlobalVar(
-                            Q.FunctionPtr(Q.Void(), [Q.String()]),
-                            "__builtin__destroy_string"
-                        ),
-                        [v]
-                    ))
+                # TODO: strings cause memleaks for now
+                # if isinstance(v.type, Q.String):
+                #     Q.add_defer(Q.Call(
+                #         Q.new_var(Q.Void()),
+                #         Q.GlobalVar(
+                #             Q.FunctionPtr(Q.Void(), [Q.String()]),
+                #             "__builtin__destroy_string"
+                #         ),
+                #         [v]
+                #     ))
                 return v
         node.attrs.quad_gen = impl_e
 

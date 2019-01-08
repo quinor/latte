@@ -17,7 +17,7 @@ bool_literal = G.addpos(
 
 
 string_literal = G.addpos(G.lexeme(
-    P.regex(r'".*?"').map(lambda s: ast.SConstant(val=s)).desc("string literal")))
+    P.regex(r'".*?"').map(lambda s: ast.SConstant(val=s[1:-1])).desc("string literal")))
 
 
 unary_operator = G.addpos(P.alt(*map(

@@ -8,11 +8,12 @@ from . import colors
 
 @attr.s(auto_attribs=True)
 class AttrObject:
-    type:       typing.Any = None
-    generated:  typing.Any = None
-    returns:    typing.Any = None
-    value:      typing.Any = None
-    quad_gen:   typing.Any = None
+    type:           typing.Any = None
+    ignore_names:   typing.Any = None
+    generated:      typing.Any = None
+    returns:        typing.Any = None
+    value:          typing.Any = None
+    quad_gen:       typing.Any = None
 
 
 @attr.s(frozen=True, auto_attribs=True, kw_only=True, repr=False)
