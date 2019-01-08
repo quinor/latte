@@ -1,3 +1,4 @@
+import typing
 from .. import ast
 from .scopes import var_decls
 from .. import quads as Q
@@ -56,11 +57,11 @@ def gen_quads_post(node: ast.Node) -> None:
                 v = Q.new_var(Q.from_ast_type(ft.ret))
 
                 Q.add_quad(pos)
-                Q.add_quad(Q.Call(v, Q.identity(Q.I1()), [Q.Constant(Q.I1(), 1)]))
+                Q.add_quad(Q.Assign(v, Q.Constant(Q.I1(), 1)))
                 Q.add_quad(Q.Branch(end))
 
                 Q.add_quad(neg)
-                Q.add_quad(Q.Call(v, Q.identity(Q.I1()), [Q.Constant(Q.I1(), 0)]))
+                Q.add_quad(Q.Assign(v, Q.Constant(Q.I1(), 0)))
                 Q.add_quad(Q.Branch(end))
 
                 Q.add_quad(end)
@@ -102,9 +103,7 @@ def gen_quads_post(node: ast.Node) -> None:
         var = var_decls[node.var.var][-1]
 
         def impl_s() -> None:
-            assert isinstance(node, ast.Declaration)
-            assert isinstance(var, Q.Var)
-            Q.add_quad(Q.Declaration(var))
+            pass
         node.attrs.quad_gen = impl_s
 
     if isinstance(node, ast.Assignment):
@@ -114,7 +113,7 @@ def gen_quads_post(node: ast.Node) -> None:
             assert isinstance(node, ast.Assignment)
             val = node.expr.attrs.quad_gen()
             assert isinstance(var, Q.Var)
-            Q.add_quad(Q.Call(var, Q.identity(var.type), [val]))
+            Q.add_quad(Q.Assign(var, val))
         node.attrs.quad_gen = impl_s
 
     if isinstance(node, ast.Return):
@@ -180,18 +179,26 @@ def gen_quads_post(node: ast.Node) -> None:
 
     # TLDs
     if isinstance(node, ast.FunctionDeclaration):
-        params = [var_decls[e.var.var][-1] for e in node.params]
+        params: typing.List[Q.Var] = [
+            var_decls[e.var.var][-1] for e in node.params]  # type: ignore
 
         def impl_t() -> Q.Function:
             assert isinstance(node, ast.FunctionDeclaration)
+            assert isinstance(node.type, ast.Function)
+
+            head_params = [Q.new_var(p.type) for p in params]
+            for p, hp in zip(params, head_params):
+                Q.add_quad(Q.Assign(p, hp))
+
             node.body.attrs.quad_gen()
+            if isinstance(node.type.ret, ast.Void):
+                Q.add_quad(Q.Return(None))
             body = Q.gather()
-            assert all(isinstance(p, Q.Var) for p in params)
             assert isinstance(node.type, ast.Function)
             return Q.Function(  # type: ignore
                 Q.from_ast_type(node.type.ret),
                 node.name,
-                params,
+                head_params,
                 body
             )
 

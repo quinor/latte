@@ -18,6 +18,23 @@ def brace_block():
     return ret
 
 
+def _constant(v: ast.Variable, t: ast.Type) -> ast.Expression:
+    if isinstance(t, ast.Bool):
+        return ast.BConstant(val=False)
+    if isinstance(t, ast.Int):
+        return ast.IConstant(val=0)
+    if isinstance(t, ast.String):
+        return ast.SConstant(val="")
+
+    errors.add_error(errors.Error(
+        start=v.start,
+        end=v.end,
+        kind=errors.ParseKind.NoDefaultValue,
+        message="There is an empty variable with no inferable default value."
+    ))
+    return ast.Nothing()  # type: ignore
+
+
 @G.addpos
 @P.generate
 def declaration():
@@ -27,7 +44,11 @@ def declaration():
         .combine(
             lambda v, e:
                 [ast.decl_from_var_type(v, type)] +
-                ([ast.Assignment(start=v.start, end=e.end, var=v, expr=e)] if e else [])
+                (
+                    [ast.Assignment(start=v.start, end=e.end, var=v, expr=e)]
+                    if e else
+                    [ast.Assignment(start=v.start, end=v.end, var=v, expr=_constant(v, type))]
+                )
         )
         .sep_by(G.symbol(","), min=1)
     )

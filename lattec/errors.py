@@ -9,6 +9,7 @@ class Kind(enum.Enum):
 
 
 class ParseKind(Kind):
+    NoDefaultValue = enum.auto()
     MalformedParenExpr = enum.auto()
     AmbiguousIf = enum.auto()
     ParserError = enum.auto()

@@ -1,9 +1,9 @@
-import typing
-from .. import ast, traverse, quads
+from .. import ast, traverse
+from .. import quads as Q
 from . import generator, scopes
 
 
-def quadruplet_generation(tree: ast.Program) -> typing.List[quads.Function]:
+def quadruplet_generation(tree: ast.Program) -> Q.Program:
     traverse.traverse(
         tree,
         pre_order=[

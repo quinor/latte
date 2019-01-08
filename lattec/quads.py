@@ -3,6 +3,9 @@ import attr
 from . import ast
 
 
+# TYPES
+
+
 @attr.s(frozen=True, auto_attribs=True, repr=False)
 class RegType:
     pass
@@ -29,7 +32,7 @@ class I32(RegType):
 @attr.s(frozen=True, auto_attribs=True, repr=False)
 class String(RegType):
     def __repr__(self):
-        return "String"
+        return "%struct.S*"
 
 
 @attr.s(frozen=True, auto_attribs=True, repr=False)
@@ -62,6 +65,9 @@ class FunctionPtr(RegType):
 
     def __repr__(self):
         return f"{self.ret} ({', '.join(map(str, self.args))})"
+
+
+# VALUES
 
 
 @attr.s(frozen=True, auto_attribs=True)
@@ -98,17 +104,15 @@ class Constant(Val):
     value: int
 
     def __repr__(self):
-        return f"{self.value}"
+        return f"{int(self.value)}"
+
+
+# QUADS
 
 
 @attr.s(frozen=True, auto_attribs=True)
 class Quad:
     pass
-
-
-@attr.s(frozen=True, auto_attribs=True)
-class Declaration(Quad):
-    var: Var
 
 
 @attr.s(frozen=True, auto_attribs=True, repr=False)
@@ -117,14 +121,6 @@ class Label(Quad):
 
     def __repr__(self):
         return f"%{self.name}"
-
-
-@attr.s(frozen=True, auto_attribs=True)
-class Function(Quad):
-    ret: RegType
-    name: str
-    params: typing.List[Var]
-    body: typing.List[Quad]
 
 
 @attr.s(frozen=True, auto_attribs=True)
@@ -149,6 +145,46 @@ class Branch(Quad):
 @attr.s(frozen=True, auto_attribs=True)
 class Return(Quad):
     val: typing.Optional[Val]
+
+
+@attr.s(frozen=True, auto_attribs=True)
+class Assign(Quad):
+    target: Var
+    source: Val
+
+
+@attr.s(frozen=True, auto_attribs=True)
+class Alloc(Quad):
+    target: Var
+
+
+@attr.s(frozen=True, auto_attribs=True)
+class Load(Quad):
+    target: Var
+    source: Val
+
+
+@attr.s(frozen=True, auto_attribs=True)
+class Store(Quad):
+    source: Val
+    target: Var
+
+
+# TOPLEVEL
+
+
+@attr.s(frozen=True, auto_attribs=True)
+class Function:
+    ret: RegType
+    name: str
+    params: typing.List[Var]
+    body: typing.List[Quad]
+
+
+Program = typing.List[Function]
+
+
+# UTILITY
 
 
 def from_ast_type(t: ast.Type) -> RegType:
@@ -176,6 +212,7 @@ def identity(t: RegType) -> GlobalVar:
 
 var_cnt: int = 0
 label_cnt: int = 0
+is_returned: bool = False
 
 
 quad_list: typing.List[Quad] = []
