@@ -34,6 +34,6 @@ def compile() -> None:
     open(llfile, "w").write(prog)
     os.system(f"llvm-as {llfile} -o {outfile}")
     if config.cfg["mrjp_testing"]:
-        # os.system(f"lli {outfile}")
         os.system(f"lli {outfile} >tmp.out")
         os.system(f"diff -q tmp.out {basename}.output")
+        os.system(f"rm tmp.out")

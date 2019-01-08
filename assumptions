@@ -11,7 +11,7 @@ SYNTAX
 SEMANTICS
     *   variables without initialization receive default initialization - if one cannot be
         inferred, that's an error
-
+    *   There are no string compares besides == and !=
 
 RUNTIME
     *   readString() reads only up to 1000 characters and reads a whitespace-separated string,
