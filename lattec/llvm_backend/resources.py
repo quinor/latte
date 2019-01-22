@@ -50,13 +50,13 @@ define dso_local %struct.S* @__builtin__add_string(%struct.S* nocapture readonly
   %9 = add i32 %5, 1
   %10 = add i32 %9, %8
   %11 = tail call noalias i8* @malloc(i32 %10)
-  %12 = tail call noalias i8* @malloc(i32 8)
+  %12 = tail call noalias i8* @malloc(i32 16)
   %13 = bitcast i8* %12 to %struct.S*
   %14 = tail call i8* @strcpy(i8* %11, i8* %4)
   %15 = getelementptr inbounds i8, i8* %11, i32 %5
   %16 = load i8*, i8** %6
   %17 = tail call i8* @strcpy(i8* %15, i8* %16)
-  %18 = getelementptr inbounds i8, i8* %12, i32 4
+  %18 = getelementptr inbounds i8, i8* %12, i32 8
   %19 = bitcast i8* %18 to i32*
   store i32 1, i32* %19
   %20 = bitcast i8* %12 to i8**
