@@ -5,6 +5,10 @@ LLVM_RUNTIME = """
 @lf  = internal constant [4 x i8] c"%lf\\00"
 @rs  = internal constant [4 x i8] c"%s\\0A\\00"
 @es  = internal constant [14 x i8] c"runtime error\\00"
+@as  = internal constant [20 x i8] c"creating %p: %p %d\\0A\\00"
+@dss = internal constant [17 x i8] c"deleting at %p:\\0A\\00"
+@ds  = internal constant [13 x i8] c"deleting %p\\0A\\00"
+@ps  = internal constant [9 x i8] c"left %d\\0A\\00"
 
 declare i32 @printf(i8*, ...)
 declare i32 @scanf(i8*, ...)
@@ -36,7 +40,7 @@ entry:  %res = alloca i32
 ; string functions
 
 
-define dso_local noalias %struct.S* @__builtin__add_string(%struct.S* nocapture readonly, %struct.S* nocapture readonly) local_unnamed_addr {
+define dso_local %struct.S* @__builtin__add_string(%struct.S* nocapture readonly, %struct.S* nocapture readonly) local_unnamed_addr {
   %3 = getelementptr inbounds %struct.S, %struct.S* %0, i32 0, i32 0
   %4 = load i8*, i8** %3
   %5 = tail call i32 @strlen(i8* %4)
@@ -82,7 +86,7 @@ define dso_local i32 @__builtin__ne_string(%struct.S* nocapture readonly, %struc
   ret i32 %9
 }
 
-define dso_local void @__builtin__destroy_string(%struct.S* nocapture) local_unnamed_addr {
+define dso_local void @__builtin__delref_string(%struct.S* nocapture) local_unnamed_addr {
   %2 = getelementptr inbounds %struct.S, %struct.S* %0, i32 0, i32 1
   %3 = load i32, i32* %2
   %4 = add i32 %3, -1
@@ -102,6 +106,14 @@ define dso_local void @__builtin__destroy_string(%struct.S* nocapture) local_unn
   ret void
 }
 
+define dso_local void @__builtin__addref_string(%struct.S* nocapture) local_unnamed_addr {
+  %2 = getelementptr inbounds %struct.S, %struct.S* %0, i32 0, i32 1
+  %3 = load i32, i32* %2
+  %4 = add i32 %3, 1
+  store i32 %4, i32* %2
+  ret void
+}
+
 define dso_local void @printString(%struct.S* nocapture readonly) local_unnamed_addr {
   %2 = getelementptr inbounds %struct.S, %struct.S* %0, i32 0, i32 0
   %3 = load i8*, i8** %2
@@ -112,7 +124,7 @@ define dso_local void @printString(%struct.S* nocapture readonly) local_unnamed_
 define dso_local noalias %struct.S* @readString() local_unnamed_addr {
   %1 = tail call noalias i8* @malloc(i32 1000)
   %2 = tail call i32 (i8*, ...) @scanf(i8* getelementptr inbounds ([4 x i8], [4 x i8]* @rs, i32 0, i32 0), i8* %1)
-  %3 = tail call noalias i8* @malloc(i32 8)
+  %3 = tail call noalias i8* @malloc(i32 16)
   %4 = bitcast i8* %3 to %struct.S*
   %5 = getelementptr inbounds i8, i8* %3, i32 4
   %6 = bitcast i8* %5 to i32*

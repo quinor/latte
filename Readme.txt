@@ -17,4 +17,3 @@ SEMANTICS
 RUNTIME
     *   readString() reads only up to 1000 characters and reads a whitespace-separated string,
         not a line - TODO fix
-    *   Strings still cause memleaks - TODO fix (write GC for them)

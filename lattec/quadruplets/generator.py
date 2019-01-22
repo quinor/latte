@@ -73,16 +73,16 @@ def gen_quads_post(node: ast.Node) -> None:
                 assert isinstance(ft, ast.Function)
                 v = Q.new_var(Q.from_ast_type(ft.ret))
                 Q.add_quad(Q.Call(v, f, args))
-                # TODO: strings cause memleaks for now
-                # if isinstance(v.type, Q.String):
-                #     Q.add_defer(Q.Call(
-                #         Q.new_var(Q.Void()),
-                #         Q.GlobalVar(
-                #             Q.FunctionPtr(Q.Void(), [Q.String()]),
-                #             "__builtin__destroy_string"
-                #         ),
-                #         [v]
-                #     ))
+                # defer string deletion
+                if isinstance(v.type, Q.String):
+                    Q.add_defer(Q.Call(
+                        Q.new_var(Q.Void()),
+                        Q.GlobalVar(
+                            Q.FunctionPtr(Q.Void(), [Q.String()]),
+                            "__builtin__delref_string"
+                        ),
+                        [v]
+                    ))
                 return v
         node.attrs.quad_gen = impl_e
 
@@ -114,19 +114,59 @@ def gen_quads_post(node: ast.Node) -> None:
             assert isinstance(node, ast.Assignment)
             val = node.expr.attrs.quad_gen()
             assert isinstance(var, Q.Var)
+            if isinstance(var.type, Q.String):
+                # reusing an attr set for every first assignment
+                if node.expr.attrs.ignore_names is None:
+                    Q.add_quad(Q.Call(
+                        Q.new_var(Q.Void()),
+                        Q.GlobalVar(
+                            Q.FunctionPtr(Q.Void(), [Q.String()]),
+                            "__builtin__delref_string"
+                        ),
+                        [var]
+                    ))
+                else:
+                    Q.add_defer(Q.Call(
+                        Q.new_var(Q.Void()),
+                        Q.GlobalVar(
+                            Q.FunctionPtr(Q.Void(), [Q.String()]),
+                            "__builtin__delref_string"
+                        ),
+                        [var]
+                    ))
+
+                Q.add_quad(Q.Call(
+                    Q.new_var(Q.Void()),
+                    Q.GlobalVar(
+                        Q.FunctionPtr(Q.Void(), [Q.String()]),
+                        "__builtin__addref_string"
+                    ),
+                    [val]
+                ))
             Q.add_quad(Q.Assign(var, val))
         node.attrs.quad_gen = impl_s
 
     if isinstance(node, ast.Return):
         def impl_s() -> None:
             # defered calls when return happens
+            assert isinstance(node, ast.Return)
+            ret = None
+            if node.val is not None:
+                ret = node.val.attrs.quad_gen()
+                # bump ref count on an object if returning a string
+                if isinstance(ret.type, Q.String):
+                    Q.add_quad(Q.Call(
+                        Q.new_var(Q.Void()),
+                        Q.GlobalVar(
+                            Q.FunctionPtr(Q.Void(), [Q.String()]),
+                            "__builtin__addref_string"
+                        ),
+                        [ret]
+                    ))
+
             for q in sum(Q.defer_stack, []):
                 Q.add_quad(q)
-            assert isinstance(node, ast.Return)
-            if node.val is not None:
-                Q.add_quad(Q.Return(node.val.attrs.quad_gen()))
-            else:
-                Q.add_quad(Q.Return(None))
+            Q.add_quad(Q.Return(ret))
         node.attrs.quad_gen = impl_s
 
     if isinstance(node, ast.If):
@@ -187,11 +227,32 @@ def gen_quads_post(node: ast.Node) -> None:
             assert isinstance(node, ast.FunctionDeclaration)
             assert isinstance(node.type, ast.Function)
 
+            Q.open_defer_scope()
+
             head_params = [Q.new_var(p.type) for p in params]
             for p, hp in zip(params, head_params):
                 Q.add_quad(Q.Assign(p, hp))
+                if isinstance(p.type, Q.String):
+                    Q.add_quad(Q.Call(
+                        Q.new_var(Q.Void()),
+                        Q.GlobalVar(
+                            Q.FunctionPtr(Q.Void(), [Q.String()]),
+                            "__builtin__addref_string"
+                        ),
+                        [p]
+                    ))
+                    Q.add_defer(Q.Call(
+                        Q.new_var(Q.Void()),
+                        Q.GlobalVar(
+                            Q.FunctionPtr(Q.Void(), [Q.String()]),
+                            "__builtin__delref_string"
+                        ),
+                        [p]
+                    ))
 
             node.body.attrs.quad_gen()
+            for q in Q.close_defer_scope():
+                Q.add_quad(q)
             if isinstance(node.type.ret, ast.Void):
                 Q.add_quad(Q.Return(None))
             body = Q.gather()
